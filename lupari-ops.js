@@ -624,6 +624,7 @@ function buildDayClosureReport(closeTimestamp) {
   
   var body = [
     '<div style="font-family: sans-serif; font-size: 13px; line-height: 1.4;">',
+    '  <p style="margin: 0 0 8px 0; color: #3b82f6; font-weight: bold;">@everyone</p>',
     '  <h3 style="margin: 0 0 6px 0; color: #1f2937;">Reporte de Reabastecimiento:</h3>',
     '  <ul style="margin: 0 0 12px 0; padding-left: 20px;">' + restockLines.join('') + '</ul>',
     '  <h3 style="margin: 12px 0 6px 0; color: #1f2937;">Reporte de Incidencias:</h3>',
