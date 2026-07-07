@@ -816,13 +816,6 @@ async function sendDayClosureReportToOdoo(report) {
           base64Data = pdfDataUri.split('base64,')[1];
         }
 
-        try {
-          pdfWorker.save();
-          console.log('Descarga local del PDF iniciada para validacion.');
-        } catch (pdfSaveErr) {
-          console.warn('Falla de guardado local PDF:', pdfSaveErr);
-        }
-
         document.body.removeChild(element);
 
         filename += '.pdf';
