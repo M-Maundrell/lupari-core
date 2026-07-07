@@ -836,32 +836,141 @@ async function sendDayClosureReportToOdoo(report) {
     try {
       var base64Data = null;
 
-      if (window.html2pdf) {
-        // 1. Generar el PDF usando html2pdf.js de manera asíncrona
-        console.log('Generando reporte PDF...');
-        console.log('HTML del reporte a renderizar (longitud):', report.htmlFileContent.length);
-
-        var pdfWorker = html2pdf().from(report.htmlFileContent).set({
-          margin: 10,
-          filename: filename + '.pdf',
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, logging: false, useCORS: true },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      var jsPDFClass = window.jsPDF || (window.jspdf && window.jspdf.jsPDF);
+      if (jsPDFClass) {
+        // 1. Generar el PDF usando jsPDF de forma nativa en memoria (evitando fallas de html2canvas en iframes)
+        console.log('Generando reporte PDF vectorial en memoria con jsPDF...');
+        
+        var doc = new jsPDFClass({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4'
         });
 
-        var pdfDataUri = await pdfWorker.output('datauristring');
+        var margin = 15;
+        var y = 20;
+
+        // Helper para imprimir líneas con envoltura de texto automática y paginación
+        function printLine(text, indent) {
+          var lines = doc.splitTextToSize(text, 175 - indent);
+          lines.forEach(function(line) {
+            if (y > 255) {
+              doc.addPage();
+              y = 20;
+            }
+            doc.text(line, margin + indent, y);
+            y += 6;
+          });
+        }
+
+        // Encabezado
+        doc.setFillColor(9, 9, 11); // #09090b (Carbono)
+        doc.rect(margin, y, 180, 25, 'F');
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(15);
+        doc.text("Reporte de Cierre de Día", margin + 10, y + 10);
+
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(161, 161, 170); // #a1a1aa (Gris)
+        doc.text("Lupari - " + sucursalName + " | " + report.date, margin + 10, y + 18);
+
+        y += 35;
+
+        // Sección: Reabastecimiento
+        doc.setFillColor(9, 9, 11);
+        doc.setTextColor(9, 9, 11);
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text("REPORTE DE REABASTECIMIENTO", margin, y);
+        doc.setDrawColor(228, 228, 231); // #e4e4e7
+        doc.setLineWidth(0.5);
+        doc.line(margin, y + 2, margin + 180, y + 2);
+        y += 8;
+
+        var restocks = state.inventoryRestocks || {};
+        var restockEntries = Object.keys(restocks).map(function(key) {
+          return Object.assign({ _key: key }, restocks[key]);
+        }).sort(function(a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
+
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(39, 39, 42); // #27272a
+        if (restockEntries.length) {
+          restockEntries.forEach(function(entry) {
+            var line = "• " + (entry.product || 'Sin producto') + ": " + (entry.quantity || 0) + " " + (entry.unit || 'unidad') + (entry.comment ? " | " + entry.comment : "");
+            printLine(line, 5);
+          });
+        } else {
+          printLine("• Sin reabastecimientos reportados.", 5);
+        }
+
+        y += 6;
+
+        // Sección: Incidencias
+        if (y > 240) { doc.addPage(); y = 20; }
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(9, 9, 11);
+        doc.text("REPORTE DE INCIDENCIAS", margin, y);
+        doc.line(margin, y + 2, margin + 180, y + 2);
+        y += 8;
+
+        var phaseNames = { prep_moto: 'Fase 1: Prep. Moto', apertura: 'Fase 2: Apertura', cierre: 'Fase 3: Cierre' };
+        ['prep_moto', 'apertura', 'cierre'].forEach(function(phaseKey) {
+          var phaseData = state.phases && state.phases[phaseKey] ? state.phases[phaseKey] : {};
+          var notes = phaseData.notas || phaseData.notes || {};
+          var noteLines = Object.keys(notes).map(function(key) {
+            var note = notes[key] || {};
+            return "• " + (note.text || '').trim();
+          }).filter(function(line) { return line !== "• "; });
+
+          if (y > 240) { doc.addPage(); y = 20; }
+          doc.setFont('Helvetica', 'bold');
+          doc.setFontSize(10);
+          doc.setTextColor(59, 130, 246); // #3b82f6 (Azul)
+          doc.text(phaseNames[phaseKey], margin + 2, y);
+          y += 5;
+
+          doc.setFont('Helvetica', 'normal');
+          doc.setTextColor(39, 39, 42);
+          if (noteLines.length) {
+            noteLines.forEach(function(line) {
+              printLine(line, 5);
+            });
+          } else {
+            printLine("• Sin incidencias.", 5);
+          }
+          y += 2;
+        });
+
+        // Pie de Página
+        if (y > 260) { doc.addPage(); y = 20; }
+        y = 270;
+        var closeTimestamp = state.phases.cierre.endTime || Date.now();
+        var closeTime = new Date(closeTimestamp).toLocaleString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
+        doc.setFillColor(244, 244, 247); // #f4f4f7
+        doc.rect(margin, y, 180, 12, 'F');
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(113, 113, 122); // #71717a
+        doc.text("Hora de Cierre: " + closeTime + " · Lupari Ops", margin + 10, y + 8);
+
+        var pdfDataUri = doc.output('datauristring');
 
         if (pdfDataUri && pdfDataUri.indexOf('base64,') !== -1) {
           base64Data = pdfDataUri.split('base64,')[1];
         }
 
         filename += '.pdf';
-        console.log('PDF generado exitosamente. Tamaño base64:', base64Data ? base64Data.length : 0);
+        console.log('PDF generado exitosamente (jsPDF). Tamaño base64:', base64Data ? base64Data.length : 0);
 
         if (isLocal) {
           console.log('[LUPARI DEBUGER] Ejecución local. Guardando PDF para depuración.');
           try {
-            await pdfWorker.save();
+            doc.save(filename);
           } catch (saveErr) {
             console.error('Falla al guardar localmente en test:', saveErr);
           }
