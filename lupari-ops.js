@@ -593,35 +593,44 @@ function renderDayClosureControl() {
 }
 
 function buildDayClosureReport(closeTimestamp) {
-  var phaseNames = { prep_moto: 'Fase 1', apertura: 'Fase 2', cierre: 'Fase 3' };
+  var phaseNames = { prep_moto: 'Fase 1: Prep. Moto', apertura: 'Fase 2: Apertura', cierre: 'Fase 3: Cierre' };
   var restocks = state.inventoryRestocks || {};
   var restockEntries = Object.keys(restocks).map(function(key) {
     return Object.assign({ _key: key }, restocks[key]);
   }).sort(function(a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
 
   var restockLines = restockEntries.length ? restockEntries.map(function(entry) {
-    return '- ' + (entry.product || 'Sin producto') + ': ' + (entry.quantity || 0) + ' ' + (entry.unit || 'unidad') + (entry.comment ? ' | ' + entry.comment : '');
-  }) : ['- Sin reabastecimientos reportados.'];
+    return '<li>' + escapeHtml(entry.product || 'Sin producto') + ': ' + escapeHtml(entry.quantity || 0) + ' ' + escapeHtml(entry.unit || 'unidad') + (entry.comment ? ' | <em>' + escapeHtml(entry.comment) + '</em>' : '') + '</li>';
+  }) : ['<li>Sin reabastecimientos reportados.</li>'];
 
-  var incidenceSections = [];
+  var incidenceHtml = '';
   ['prep_moto', 'apertura', 'cierre'].forEach(function(phaseKey) {
     var phaseData = state.phases && state.phases[phaseKey] ? state.phases[phaseKey] : {};
     var notes = phaseData.notas || phaseData.notes || {};
     var noteLines = Object.keys(notes).map(function(key) {
       var note = notes[key] || {};
-      return '- ' + (note.text || '').trim();
-    }).filter(function(line) { return !!line && line !== '- '; });
+      return '<li>' + escapeHtml((note.text || '').trim()) + '</li>';
+    }).filter(function(line) { return !!line && line !== '<li></li>'; });
 
-    incidenceSections.push('### ' + phaseNames[phaseKey] + ':');
+    incidenceHtml += '<p style="margin: 4px 0 2px 0;"><strong>' + phaseNames[phaseKey] + ':</strong></p>';
     if (noteLines.length) {
-      incidenceSections = incidenceSections.concat(noteLines);
+      incidenceHtml += '<ul style="margin: 0 0 8px 0; padding-left: 20px;">' + noteLines.join('') + '</ul>';
     } else {
-      incidenceSections.push('- Sin incidencias.');
+      incidenceHtml += '<ul style="margin: 0 0 8px 0; padding-left: 20px;"><li>Sin incidencias.</li></ul>';
     }
   });
 
   var closeTime = new Date(closeTimestamp).toLocaleString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
-  var body = ['## Reporte de Reabastecimiento:', '', ...restockLines, '', '## Reporte de Incidencias:', '', ...incidenceSections, '', 'Hora de Cierre: ' + closeTime].join('\n');
+  
+  var body = [
+    '<div style="font-family: sans-serif; font-size: 13px; line-height: 1.4;">',
+    '  <h3 style="margin: 0 0 6px 0; color: #1f2937;">Reporte de Reabastecimiento:</h3>',
+    '  <ul style="margin: 0 0 12px 0; padding-left: 20px;">' + restockLines.join('') + '</ul>',
+    '  <h3 style="margin: 12px 0 6px 0; color: #1f2937;">Reporte de Incidencias:</h3>',
+    '  ' + incidenceHtml,
+    '  <p style="margin: 12px 0 0 0; font-weight: bold; color: #4b5563;">Hora de Cierre: ' + closeTime + '</p>',
+    '</div>'
+  ].join('\n');
 
   return {
     subject: 'Reporte de cierre de día Lupari Ops',
