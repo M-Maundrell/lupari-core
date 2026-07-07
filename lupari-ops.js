@@ -808,9 +808,13 @@ async function sendDayClosureReportToOdoo(report) {
         var element = document.createElement('div');
         element.innerHTML = report.htmlFileContent;
         // Ajustes para centrar y estructurar adecuadamente el PDF en tamaño A4
+        element.style.position = 'absolute';
+        element.style.left = '-9999px';
+        element.style.top = '0';
         element.style.width = '170mm';
         element.style.padding = '10px';
         element.style.background = '#ffffff';
+        document.body.appendChild(element);
 
         var pdfDataUri = await html2pdf().from(element).set({
           margin: 10,
@@ -823,6 +827,8 @@ async function sendDayClosureReportToOdoo(report) {
         if (pdfDataUri && pdfDataUri.indexOf('base64,') !== -1) {
           base64Data = pdfDataUri.split('base64,')[1];
         }
+
+        document.body.removeChild(element);
 
         filename += '.pdf';
         console.log('PDF generado exitosamente. Tamaño base64:', base64Data ? base64Data.length : 0);
