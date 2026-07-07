@@ -860,7 +860,12 @@ async function sendDayClosureReportToOdoo(report) {
             console.log('Adjunto creado en Odoo exitosamente. ID:', attachmentId);
           } else {
             console.warn('Error al crear adjunto en Odoo:', attachJson.error);
+            var errStr = attachJson.error ? (attachJson.error.message || JSON.stringify(attachJson.error)) : 'Respuesta sin resultado';
+            alert('⚠️ Odoo rechazó la creación del archivo adjunto:\n' + errStr);
           }
+        } else {
+          console.warn('attachResponse not OK:', attachResponse.status);
+          alert('⚠️ Error de red al subir adjunto a Odoo. Estatus: ' + attachResponse.status);
         }
       }
     } catch (err) {
