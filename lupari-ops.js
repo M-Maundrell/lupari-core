@@ -842,10 +842,11 @@ async function sendDayClosureReportToOdoo(report) {
         console.log('Generando reporte PDF...');
         var element = document.createElement('div');
         element.innerHTML = report.htmlFileContent;
-        // Ajustes para centrar y estructurar adecuadamente el PDF en tamaño A4
-        element.style.position = 'absolute';
-        element.style.left = '-9999px';
+        // Ajustes para centrar y estructurar adecuadamente el PDF en tamaño A4 (z-index -1000 para ocultar visualmente pero mantener en viewport para html2canvas)
+        element.style.position = 'fixed';
+        element.style.left = '0';
         element.style.top = '0';
+        element.style.zIndex = '-1000';
         element.style.width = '170mm';
         element.style.padding = '10px';
         element.style.background = '#ffffff';
