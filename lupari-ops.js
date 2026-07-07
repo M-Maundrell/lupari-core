@@ -600,7 +600,7 @@ function buildDayClosureReport(closeTimestamp) {
   }).sort(function(a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
 
   var restockLines = restockEntries.length ? restockEntries.map(function(entry) {
-    return '<li>' + escapeHtml(entry.product || 'Sin producto') + ': ' + escapeHtml(entry.quantity || 0) + ' ' + escapeHtml(entry.unit || 'unidad') + (entry.comment ? ' | <em>' + escapeHtml(entry.comment) + '</em>' : '') + '</li>';
+    return '<li>' + escapeHtml(entry.product || 'Sin producto') + ': ' + escapeHtml(entry.quantity || 0) + ' ' + escapeHtml(entry.unit || 'unidad') + (entry.comment ? ' | ' + escapeHtml(entry.comment) : '') + '</li>';
   }) : ['<li>Sin reabastecimientos reportados.</li>'];
 
   var incidenceHtml = '';
@@ -612,26 +612,26 @@ function buildDayClosureReport(closeTimestamp) {
       return '<li>' + escapeHtml((note.text || '').trim()) + '</li>';
     }).filter(function(line) { return !!line && line !== '<li></li>'; });
 
-    incidenceHtml += '<p style="margin: 4px 0 2px 0;"><strong>' + phaseNames[phaseKey] + ':</strong></p>';
+    incidenceHtml += '<p><strong>' + phaseNames[phaseKey] + ':</strong></p>';
     if (noteLines.length) {
-      incidenceHtml += '<ul style="margin: 0 0 8px 0; padding-left: 20px;">' + noteLines.join('') + '</ul>';
+      incidenceHtml += '<ul>' + noteLines.join('') + '</ul>';
     } else {
-      incidenceHtml += '<ul style="margin: 0 0 8px 0; padding-left: 20px;"><li>Sin incidencias.</li></ul>';
+      incidenceHtml += '<ul><li>Sin incidencias.</li></ul>';
     }
   });
 
   var closeTime = new Date(closeTimestamp).toLocaleString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
   
   var body = [
-    '<div style="font-family: sans-serif; font-size: 13px; line-height: 1.4;">',
-    '  <p style="margin: 0 0 8px 0; color: #3b82f6; font-weight: bold;">@everyone</p>',
-    '  <h3 style="margin: 0 0 6px 0; color: #1f2937;">Reporte de Reabastecimiento:</h3>',
-    '  <ul style="margin: 0 0 12px 0; padding-left: 20px;">' + restockLines.join('') + '</ul>',
-    '  <h3 style="margin: 12px 0 6px 0; color: #1f2937;">Reporte de Incidencias:</h3>',
-    '  ' + incidenceHtml,
-    '  <p style="margin: 12px 0 0 0; font-weight: bold; color: #4b5563;">Hora de Cierre: ' + closeTime + '</p>',
-    '</div>'
-  ].join('\n');
+    '<p><strong>@everyone</strong></p>',
+    '<p><strong>Reporte de Reabastecimiento:</strong></p>',
+    '<ul>' + restockLines.join('') + '</ul>',
+    '<br/>',
+    '<p><strong>Reporte de Incidencias:</strong></p>',
+    incidenceHtml,
+    '<br/>',
+    '<p><strong>Hora de Cierre:</strong> ' + closeTime + '</p>'
+  ].join('');
 
   return {
     subject: 'Reporte de cierre de día Lupari Ops',
@@ -666,7 +666,8 @@ async function sendDayClosureReportToOdoo(report) {
               body: report.body,
               subject: report.subject,
               message_type: 'comment',
-              subtype_id: false
+              subtype: 'mail.mt_comment',
+              subtype_xmlid: 'mail.mt_comment'
             }
           }
         })
@@ -701,7 +702,8 @@ async function sendDayClosureReportToOdoo(report) {
               body: report.body,
               subject: report.subject,
               message_type: 'comment',
-              subtype_id: false
+              subtype: 'mail.mt_comment',
+              subtype_xmlid: 'mail.mt_comment'
             }
           }
         })
