@@ -666,8 +666,7 @@ async function sendDayClosureReportToOdoo(report) {
               body: report.body,
               subject: report.subject,
               message_type: 'comment',
-              subtype: 'mail.mt_comment',
-              subtype_xmlid: 'mail.mt_comment'
+              subtype_id: false
             }
           }
         })
@@ -702,8 +701,7 @@ async function sendDayClosureReportToOdoo(report) {
               body: report.body,
               subject: report.subject,
               message_type: 'comment',
-              subtype: 'mail.mt_comment',
-              subtype_xmlid: 'mail.mt_comment'
+              subtype_id: false
             }
           }
         })
