@@ -982,8 +982,8 @@ async function sendDayClosureReportToOdoo(report) {
           await pushReportToGitHub(base64Data, filename);
         }
       } else {
-        // Fallback a HTML si html2pdf no está cargado
-        console.warn('html2pdf.js no está disponible. Usando fallback de HTML.');
+        // Fallback a HTML si jsPDF no está cargado
+        console.warn('jsPDF no está disponible. Usando fallback de HTML.');
         base64Data = btoa(unescape(encodeURIComponent(report.htmlFileContent)));
         filename += '.html';
         if (isLocal) {
