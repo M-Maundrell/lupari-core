@@ -633,8 +633,44 @@ async function sendDayClosureReportToOdoo(report) {
   var headers = { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
 
   if (channelId) {
+    // 1. Intentar con discuss.channel (Odoo 16+)
     try {
-      await fetch('/web/dataset/call_kw/mail.channel/message_post', {
+      var response = await fetch('/web/dataset/call_kw/discuss.channel/message_post', {
+        method: 'POST',
+        headers: headers,
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'call',
+          params: {
+            model: 'discuss.channel',
+            method: 'message_post',
+            args: [channelId],
+            kwargs: {
+              body: report.body,
+              subject: report.subject,
+              message_type: 'comment',
+              subtype_id: false
+            }
+          }
+        })
+      });
+      if (response.ok) {
+        var resJson = await response.json();
+        if (resJson && !resJson.error) {
+          console.log('Reporte enviado exitosamente a discuss.channel.');
+          return;
+        } else {
+          console.warn('Falla en discuss.channel:', resJson.error);
+        }
+      }
+    } catch (err) {
+      console.warn('Error al intentar enviar a discuss.channel:', err);
+    }
+
+    // 2. Intentar con mail.channel (Odoo 15 y anteriores)
+    try {
+      var response = await fetch('/web/dataset/call_kw/mail.channel/message_post', {
         method: 'POST',
         headers: headers,
         credentials: 'same-origin',
@@ -649,17 +685,26 @@ async function sendDayClosureReportToOdoo(report) {
               body: report.body,
               subject: report.subject,
               message_type: 'comment',
-              subtype: 'mail.mt_comment'
+              subtype_id: false
             }
           }
         })
       });
-      return;
+      if (response.ok) {
+        var resJson = await response.json();
+        if (resJson && !resJson.error) {
+          console.log('Reporte enviado exitosamente a mail.channel.');
+          return;
+        } else {
+          console.warn('Falla en mail.channel:', resJson.error);
+        }
+      }
     } catch (err) {
-      console.warn('No fue posible enviar el reporte al canal de Odoo.', err);
+      console.warn('Error al intentar enviar a mail.channel:', err);
     }
   }
 
+  // 3. Fallback a mail.message si falla la publicación en canales
   var response = await fetch('/web/dataset/call_kw/mail.message/create', {
     method: 'POST',
     headers: headers,
