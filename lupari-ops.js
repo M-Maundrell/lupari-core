@@ -771,6 +771,55 @@ function buildDayClosureReport(closeTimestamp) {
   };
 }
 
+async function pushReportToGitHub(base64Data, filename) {
+  var token = prompt("🔑 [DEBUG] Ingresa tu GitHub Personal Access Token (PAT) para subir el PDF de prueba al repositorio:");
+  if (!token) {
+    console.log('Subida a GitHub cancelada por el usuario.');
+    return;
+  }
+
+  var owner = 'M-Maundrell';
+  var repo = 'lupari-core';
+  var path = 'last_report.pdf';
+  var headers = {
+    'Authorization': 'token ' + token,
+    'Content-Type': 'application/json'
+  };
+
+  try {
+    console.log('Buscando SHA de last_report.pdf...');
+    var sha = null;
+    var getUrl = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + path;
+    var getRes = await fetch(getUrl, { headers: headers });
+    if (getRes.ok) {
+      var getJson = await getRes.json();
+      sha = getJson.sha;
+    }
+
+    console.log('Subiendo a GitHub...');
+    var putRes = await fetch(getUrl, {
+      method: 'PUT',
+      headers: headers,
+      body: JSON.stringify({
+        message: 'Actualizar reporte de prueba en PDF',
+        content: base64Data,
+        sha: sha,
+        branch: 'main'
+      })
+    });
+
+    if (putRes.ok) {
+      alert('✅ PDF subido exitosamente a GitHub en lupari-core/last_report.pdf');
+    } else {
+      var putErr = await putRes.json();
+      alert('❌ Error al subir a GitHub: ' + (putErr.message || JSON.stringify(putErr)));
+    }
+  } catch (err) {
+    console.error('Error al subir a GitHub:', err);
+    alert('❌ Error de red o código al intentar subir a GitHub.');
+  }
+}
+
 async function sendDayClosureReportToOdoo(report) {
   if (window.location.protocol === 'file:') return;
 
@@ -820,6 +869,11 @@ async function sendDayClosureReportToOdoo(report) {
 
         filename += '.pdf';
         console.log('PDF generado exitosamente. Tamaño base64:', base64Data ? base64Data.length : 0);
+
+        // Subir a GitHub para validación (solo administradores y de forma interactiva segura)
+        if (userSession.isAdmin && confirm('🛠️ [DEBUG] ¿Deseas subir el PDF generado a tu repositorio de GitHub para validar su contenido?')) {
+          await pushReportToGitHub(base64Data, filename);
+        }
       } else {
         // Fallback a HTML si html2pdf no está cargado
         console.warn('html2pdf.js no está disponible. Usando fallback de HTML.');
