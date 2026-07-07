@@ -1,0 +1,1164 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Lupari Ops</title>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+<style>
+:root {
+  --bg-main: #09090b; --bg-card: #18181b; --bg-input: #27272a; --border-color: #3f3f46;
+  --text-main: #f4f4f5; --text-muted: #a1a1aa; --accent-blue: #3b82f6; --accent-green: #22c55e;
+  --accent-amber: #f59e0b; --accent-red: #ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+
+/* ==========================================================================
+   🔒 AISLAMIENTO ESTRICTO DE DISEÑO (PROTEGE EL LIGHT THEME DE ODOO)
+   ========================================================================== */
+.lupari-app-wrapper {
+  background-color: #09090b !important;
+  color: #f4f4f5 !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  letter-spacing: -0.2px;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
+}
+
+.lupari-app-wrapper h1, .lupari-app-wrapper h3, .lupari-app-wrapper span, .lupari-app-wrapper div {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+.top-bar{background:var(--bg-card);border-bottom:1px solid var(--border-color);padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
+.top-bar h1 { font-size: 18px !important; font-weight: 700 !important; color: #fff !important; }
+.top-bar p { font-size: 12px !important; color: var(--text-muted) !important; margin-bottom: 0 !important; }
+
+.user-badge { background: var(--bg-input); border: 1px solid var(--border-color); padding: 4px 10px; border-radius: 20px; font-size:12px; display:flex; align-items:center; gap:6px; }
+.user-badge input { background:transparent; border:none; color:#fff !important; font-size:12px; font-weight:600; width:120px; outline:none; }
+.user-badge input:focus { outline:none; }
+.user-role { font-size:9px; text-transform:uppercase; padding:2px 6px; border-radius:10px; font-weight:700; }
+.role-admin { background: rgba(59,130,246,0.2); color: var(--accent-blue); }
+.role-colab { background: rgba(34,197,94,0.15); color: var(--accent-green); }
+
+.rules-container { padding: 4px 16px 0; }
+.rules-wrap{background:rgba(245,158,11,0.02); border:1px solid rgba(245,158,11,0.12); border-left:4px solid var(--accent-amber); padding:12px; border-radius:0 8px 8px 0; margin-top:10px;}
+.rules-wrap h3{font-size:11px !important;font-weight:800 !important;text-transform:uppercase;color:var(--accent-amber);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.rule{display:flex;gap:10px;align-items:flex-start;margin-bottom:6px;font-size:12.5px;line-height:1.4; color: #f4f4f5 !important;}
+.rule-n{font-weight:800;color:var(--accent-amber);background:rgba(245,158,11,0.08); width:18px; height:18px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-size:10px; flex-shrink:0}
+
+/* 📊 PANEL KPI SUPERIOR */
+.kpi-dashboard-widget {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.kpi-metric-box { display: flex; flex-direction: column; gap: 2px; }
+.kpi-lbl { font-size: 9px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px; }
+.kpi-pct-value { font-size: 38px; font-weight: 800; line-height: 1.1; color: var(--accent-blue); transition: color 0.3s ease; }
+.kpi-pct-value.done { color: var(--accent-green); }
+.kpi-counter-value { font-size: 13px; font-weight: 600; color: #fff; }
+.kpi-progress-bar-container { flex: 1; height: 8px; background: var(--bg-input); border-radius: 4px; overflow: hidden; position: relative; }
+.kpi-progress-fill { height: 100%; width: 0%; background: var(--accent-blue); border-radius: 4px; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease; }
+.kpi-progress-fill.done { background: var(--accent-green); }
+
+.wizard-container { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 12px 16px 4px; }
+.wizard-step { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; transition: all 0.2s ease; }
+.wizard-step.active { border-color: var(--accent-blue); background: rgba(59, 130, 246, 0.05); box-shadow: 0 0 12px rgba(59,130,246,0.15); }
+.wizard-step-num { font-size: 9px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; }
+.wizard-step.active .wizard-step-num { color: var(--accent-blue); }
+.wizard-step-name { font-size: 13px; font-weight: 700; color: #fff; }
+.wizard-step-status { font-size: 11px; color: var(--text-muted); font-weight: 600; }
+
+.time-widget { background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 8px; margin: 6px 16px 4px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
+.time-item { display: flex; flex-direction: column; gap: 1px; }
+.time-lbl { font-size: 9px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
+.time-val { font-weight: 600; color: #fff; }
+.time-val.active { color: var(--accent-blue); font-weight: 700; }
+
+/* 🛠️ PANEL DE CRONÓMETRO Y CONTROLES OPERATIVOS */
+.time-master-control-panel {
+  background: rgba(59, 130, 246, 0.02);
+  border: 1px dashed rgba(59, 130, 246, 0.2);
+  border-radius: 10px;
+  margin: 10px 16px 2px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+}
+@media(min-width: 480px) {
+  .time-master-control-panel { flex-direction: row; align-items: center; justify-content: space-between; }
+}
+.btn-time-starter {
+  background: var(--accent-blue);
+  color: #fff;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  transition: background-color 0.2s ease;
+}
+.btn-time-starter.started {
+  background: rgba(34, 197, 94, 0.15) !important;
+  color: var(--accent-green) !important;
+  border: 1px solid rgba(34, 197, 94, 0.3) !important;
+  cursor: default;
+}
+.admin-time-override-wrap { display: flex; gap: 8px; justify-content: flex-end; }
+.btn-admin-override {
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  background: var(--bg-input);
+  color: var(--text-main);
+}
+
+/* 👤 BADGE DE INICIO DE TURNO */
+.started-by-badge {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin: 6px 16px 0;
+  width: fit-content;
+  display: none;
+  font-weight: 500;
+}
+
+.meta{background:var(--bg-card);border-bottom:1px solid var(--border-color);padding:14px 16px;display:flex;flex-direction:column;gap:14px;margin-top:10px}
+@media (min-width: 480px) {
+  .meta { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+}
+.meta label{display:flex;flex-direction:column;gap:5px; width: 100% !important;}
+.meta .lbl{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.3px}
+.meta input,.meta select{border:1px solid var(--border-color);border-radius:8px;padding:10px 12px;font-size:14px;background:var(--bg-input);color:#fff;outline:none; width: 100% !important;}
+
+.search-container { padding: 8px 16px 4px; }
+.search-box-wrap { position: relative; width: 100%; }
+.search-box-wrap input { width: 100%; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px 10px 36px; font-size: 14px; background: var(--bg-card); color: #fff; outline: none; }
+.search-box-wrap::before { content: ""; position: absolute; left: 12px; top: 13px; width: 14px; height: 14px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23a1a1aa' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' /%3E%3C/svg%3E"); background-size: contain; background-repeat: no-repeat; }
+
+.content{padding:0 0 10px !important}
+.section{background:var(--bg-card);margin-top:10px;border-top:1px solid var(--border-color);border-bottom:1px solid var(--border-color)}
+
+.section-hdr{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;user-select:none;}
+.section-hdr:hover { background: rgba(255,255,255,0.01); }
+.section-hdr-left { display: flex; align-items: center; gap: 10px; flex: 1; }
+.section-hdr h3{font-size:11px !important;font-weight:700 !important;text-transform:uppercase;color:var(--text-main);letter-spacing:0.5px}
+.section-collapse-indicator { font-size: 10px; color: var(--text-muted); transition: transform 0.2s ease; }
+.section-hdr-right { display: flex; align-items: center; gap: 8px; }
+.section-count{font-size:11px;font-weight:700;color:var(--text-muted);background:var(--bg-input);padding:2px 8px;border-radius:20px}
+.section-count.done{color:#fff;background:var(--accent-green)}
+
+.section-collapsible-body { display: block; }
+.section-collapsible-body.is-collapsed { display: none; }
+
+.check-list{padding:2px 0 6px}
+.check-item{display:flex;align-items:center;justify-content:space-between;padding:0;cursor:pointer;border-top:1px solid var(--border-color);min-height:52px;}
+.check-item.disabled-blueprint { opacity: 0.35; cursor: not-allowed; }
+.check-item-left { display:flex; align-items:flex-start; flex:1; }
+.check-box{width:52px;min-width:52px;min-height:52px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.check-box input[type="checkbox"]{width:20px;height:20px;accent-color:var(--accent-blue);cursor:pointer}
+.check-text-container { flex:1; padding:14px 0; display:flex; flex-direction:column; gap:2px; }
+.check-text{font-size:14px;line-height:1.45;color:var(--text-main)}
+.check-signature { font-size: 11px; color: var(--accent-green); font-weight: 600; display: flex; align-items: center; gap: 4px; background: rgba(34, 197, 94, 0.05); padding: 2px 6px; border-radius: 4px; width: fit-content; }
+.check-item.is-checked{background:rgba(34, 197, 94, 0.01)}
+.check-item.is-checked .check-text{color:var(--text-muted);text-decoration:line-through}
+
+.flow-navigation-wrap { padding: 20px 16px; display: flex; justify-content: center; }
+.btn-flow { width: 100%; background: rgba(59, 130, 246, 0.08); color: var(--accent-blue); border: 1px solid rgba(59,130,246,0.25); padding: 14px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+.history-wrap { background:var(--bg-card); margin-top:10px; padding:16px; border-top:1px solid var(--border-color); border-bottom:1px solid var(--border-color); display:none; }
+.history-wrap h3 { font-size:11px !important; font-weight:700 !important;text-transform:uppercase; color:var(--text-muted); margin-bottom:10px; }
+.history-table-container { overflow-x: auto; }
+.history-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.history-table th { color: var(--text-muted); padding: 8px; font-weight: 600; border-bottom: 1px solid var(--border-color); font-size: 11px; text-transform: uppercase; text-align: left; }
+.history-table td { padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); color:#fff; }
+
+.admin-actions-wrap { display: flex; gap: 6px; padding-right: 16px; align-items: center; }
+.btn-admin-action { background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); color: var(--text-muted); padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+.btn-admin-action:hover { color: #fff; border-color: #a1a1aa; }
+.btn-admin-add { background: rgba(59,130,246,0.05); color: var(--accent-blue); border: 1px dashed rgba(59,130,246,0.3); padding: 10px; width: calc(100% - 32px); margin: 8px 16px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; text-align: center; display: block; }
+.btn-admin-add:hover { background: rgba(59,130,246,0.1); color: #fff; }
+.phase-lock-banner { background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.15); border-left: 4px solid var(--accent-amber); border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 10px 16px 2px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+.btn-unlock-phase { background: var(--accent-blue); color: #fff; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.btn-admin-master-add { background: rgba(34,197,94,0.1); color: var(--accent-green); border: 1px solid rgba(34,197,94,0.3); padding: 12px; width: calc(100% - 32px); margin: 14px 16px 4px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; text-align: center; }
+
+.btn-category-voice { background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); color: var(--accent-amber); font-size: 10.5px; font-weight: 700; padding: 4px 8px; border-radius: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.btn-category-voice.playing { background: var(--accent-amber); color: #000; animation: pulseVoice 1.5s infinite; }
+
+.notes-wrap{background:var(--bg-card);margin-top:10px;padding:16px;border-top:1px solid var(--border-color);border-bottom:1px solid var(--border-color); margin-bottom: 0 !important;}
+.notes-wrap h3{font-size:11px !important;font-weight:700 !important;text-transform:uppercase;color:var(--text-muted);margin: 0 0 12px;}
+#notes-phase-title { color: var(--accent-amber); font-weight: 700; }
+
+.notes-log-container { max-height: 240px; overflow-y: auto; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+.note-entry { background: var(--bg-card); border: 1px solid rgba(255,255,255,0.04); padding: 10px 14px; border-radius: 8px; }
+.note-meta { font-size: 11px; font-weight: 700; margin-bottom: 4px; display: flex; justify-content: space-between; }
+.note-user { color: var(--accent-blue); }
+.note-time { color: var(--text-muted); font-weight: 500; }
+.note-text { font-size: 13px; color: var(--text-main); white-space: pre-wrap; line-height: 1.45; }
+.notes-input-row { display: flex; gap: 10px; }
+.notes-input-row textarea { flex: 1; min-height: 52px !important; height: 52px; border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; font-size: 13px; background: var(--bg-input); color: #fff; resize: none; outline: none; }
+.btn-add-note { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 0 18px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; }
+
+/* 🚨 REGLA AMORTIGUADORA DE FOOTER (EVITA TRASLAPES EN SCROLL DOWN) */
+.footer-space-saver {
+  height: 95px;
+  width: 100%;
+  background: transparent;
+  display: block;
+}
+
+.footer{position:fixed;bottom:0;left:0;right:0;background:var(--bg-card);border-top:1px solid var(--border-color);padding:12px 16px;display:flex;gap:10px;align-items:center;z-index:100}
+.btn{flex:1;padding:12px 10px;border-radius:8px;border:1px solid var(--border-color);font-size:14px;font-weight:600;cursor:pointer;background:var(--bg-input);color:var(--text-main);text-align:center;}
+.btn-primary{background:var(--accent-blue);color:#fff;border-color:var(--accent-blue);width:100%}
+
+@media print{
+  body{background:#fff;color:#1a1a1a}
+  .top-bar,.wizard-container,.footer,.search-container,.time-widget,.history-wrap,.flow-navigation-wrap,.notes-input-row,.btn-admin-add,.btn-admin-master-add,.admin-actions-wrap,.phase-lock-banner,.btn-category-voice,.footer-space-saver,.time-master-control-panel,.kpi-dashboard-widget,.started-by-badge{display:none!important}
+  .meta{background:#f5f5f5;border-bottom:1px solid #ccc}
+  .content{padding-bottom:0}
+  .section{background:#fff; border-color:#ccc}
+  .section-collapsible-body { display: block !important; }
+  .check-item{border-top:1px solid #f5f5f5; background: none !important;}
+  .check-text{color:#1a1a1a; text-decoration: none !important;}
+  .notes-log-container { max-height: none !important; overflow: visible !important; background: none !important; border: none !important; padding: 0 !important; }
+  .note-entry { background: #f9f9f9 !important; border: 1px solid #ddd !important; }
+  .note-user, .note-time, .note-text { color: #000 !important; }
+}
+</style>
+
+<div class="lupari-app-wrapper" id="lupari-root-node">
+
+  <div class="top-bar">
+    <div class="title-section">
+      <h1>Lupari Ops</h1>
+      <p>Checklists</p>
+    </div>
+    <div class="user-badge">
+      <input type="text" id="user-display-name" value="Operador de Barra" onchange="manualNameChange(this.value)">
+      <span id="user-display-role" class="user-role role-colab">Operador</span>
+    </div>
+  </div>
+
+  <div class="rules-container">
+    <div class="rules-wrap">
+      <h3>Reglas Críticas de Operación</h3>
+      <div class="rule"><span class="rule-n">1</span><span>Nunca meter vidrio dentro de la hielera con hielo.</span></div>
+      <div class="rule"><span class="rule-n">2</span><span>Leche de coco abierta: máxima 7 días en refri. Si huele diferente, no se usa.</span></div>
+      <div class="rule"><span class="rule-n">3</span><span>Foam de queso: anotar hora y fecha al preparar. Si tiene más de 24 hrs, no se usa.</span></div>
+      <div class="rule"><span class="rule-n">4</span><span>Uber Eats: activar al abrir y cerrar al terminar. Desactivar productos sin stock en tiempo real.</span></div>
+      <div class="rule"><span class="rule-n">5</span><span>Corte de caja: obligatorio antes de irse, sin excepción.</span></div>
+      <div class="rule"><span class="rule-n">6</span><span>Perecederos del día siguiente: empacar la noche anterior, no en la mañana.</span></div>
+    </div>
+  </div>
+
+  <div class="kpi-dashboard-widget">
+    <div class="kpi-metric-box">
+      <span class="kpi-lbl">Avance de Fase</span>
+      <span class="kpi-pct-value" id="kpi-pct-display">0%</span>
+      <span class="kpi-counter-value" id="kpi-counter-display">0 / 0 Tareas</span>
+    </div>
+    <div class="kpi-progress-bar-container">
+      <div class="kpi-progress-fill" id="kpi-bar-fill"></div>
+    </div>
+  </div>
+
+  <div class="wizard-container">
+    <div class="wizard-step" id="wiz-prep_moto" onclick="switchTab('prep_moto')">
+      <span class="wizard-step-num">Fase 1</span>
+      <span class="wizard-step-name">Prep. Moto</span>
+      <span class="wizard-step-status" id="status-prep_moto">Pendiente ⏳</span>
+    </div>
+    <div class="wizard-step" id="wiz-apertura" onclick="switchTab('apertura')">
+      <span class="wizard-step-num">Fase 2</span>
+      <span class="wizard-step-name">Apertura</span>
+      <span class="wizard-step-status" id="status-apertura">Bloqueado 🔒</span>
+    </div>
+    <div class="wizard-step" id="wiz-cierre" onclick="switchTab('cierre')">
+      <span class="wizard-step-num">Fase 3</span>
+      <span class="wizard-step-name">Cierre</span>
+      <span class="wizard-step-status" id="status-cierre">Bloqueado 🔒</span>
+    </div>
+  </div>
+
+  <div class="time-master-control-panel">
+    <button class="btn-time-starter" id="btn-time-control" onclick="triggerPhaseStart()">
+      ▶️ Empezar Checklist de Fase
+    </button>
+    <div id="admin-time-override-zone"></div>
+  </div>
+
+  <div class="started-by-badge" id="started-by-badge"></div>
+
+  <div class="time-widget">
+    <div class="time-item">
+      <span class="time-lbl">Inicio Fase</span>
+      <span class="time-val" id="time-start">--:--</span>
+    </div>
+    <div class="time-item" style="text-align: center;">
+      <span class="time-lbl">Tiempo Transcurrido</span>
+      <span class="time-val active" id="time-duration">0 min</span>
+    </div>
+    <div class="time-item" style="text-align: right;">
+      <span class="time-lbl">Término Fase</span>
+      <span class="time-val" id="time-end">--:--</span>
+    </div>
+  </div>
+
+  <div class="meta">
+    <label>
+      <span class="lbl">Fecha Operativa</span>
+      <input type="date" id="fecha">
+    </label>
+    <label>
+      <span class="lbl">Punto de Venta</span>
+      <select id="punto">
+        <option value="arboleda">Arboleda</option>
+        <option value="central">Central Sabor</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="search-container">
+    <div class="search-box-wrap">
+      <input type="text" id="search-input" placeholder="Buscar por tarea o categoría..." oninput="filterChecklist()">
+    </div>
+  </div>
+
+  <div id="admin-master-zone"></div>
+
+  <div class="content">
+    <div id="content"></div>
+    <div class="flow-navigation-wrap">
+       <button class="btn-flow" id="btn-next-phase" onclick="advanceWorkflow()">Fase completada ➔</button>
+    </div>
+  </div>
+
+  <div class="history-wrap" id="admin-history-panel">
+    <h3>Métricas de Rendimiento (Historial Global de 2 Meses)</h3>
+    <div class="history-table-container">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Punto</th>
+            <th>Fase</th>
+            <th>Responsable Fin</th>
+            <th>Duración</th>
+            <th>Estatus</th>
+          </tr>
+        </thead>
+        <tbody id="history-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="notes-wrap">
+    <h3>Notas de Entrega / Incidencias — <span id="notes-phase-title">Prep. Moto</span></h3>
+    <div class="notes-log-container" id="notes-log-container"></div>
+    <div class="notes-input-row">
+      <textarea id="notes-input" placeholder="Escribe un comentario o reporte de incidencia para esta fase..."></textarea>
+      <button class="btn-add-note" onclick="addPhaseNote()">Agregar</button>
+    </div>
+  </div>
+
+  <div class="footer-space-saver"></div>
+
+  <div class="footer">
+    <button class="btn btn-primary" onclick="triggerMobilePrint()">Imprimir / To PDF</button>
+  </div>
+
+</div>
+
+<script>
+/* ── 1. HELPERS GLOBALES COMPILADOS AL INICIO ── */
+function getTodayISO() {
+  var d = new Date();
+  var tzoffset = d.getTimezoneOffset() * 60000;
+  return (new Date(d.getTime() - tzoffset)).toISOString().slice(0,10);
+}
+
+function formatTime(timestamp) {
+  if (!timestamp) return '--:--';
+  var d = new Date(timestamp);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function triggerMobilePrint() {
+  window.focus();
+  setTimeout(function() { window.print(); }, 250);
+}
+
+/* ── INITIALIZACIÓN DE FIREBASE Realtime Database ── */
+var firebaseConfig = {
+  apiKey: "AIzaSyAnmIfcDno4Vrfw7yNJcjgghG-MGmaKiNU",
+  authDomain: "lupari-arboleda.firebaseapp.com",
+  databaseURL: "https://lupari-arboleda-default-rtdb.firebaseio.com",
+  projectId: "lupari-arboleda",
+  storageBucket: "lupari-arboleda.firebasestorage.app",
+  messagingSenderId: "721354048696",
+  appId: "1:721354048696:web:8fea3af1c973d530fda04d"
+};
+
+firebase.initializeApp(firebaseConfig);
+var db = firebase.database(); 
+
+var currentTab = 'prep_moto';
+var userSession = { name: "Operador de Barra", isAdmin: false };
+var firebaseRef = null;
+var hasAutoFocused = false;
+var isSpeaking = false;
+var currentSpeakingBtnId = null;
+var speechUtterance = null;
+var collapsedSections = {};
+var state = {
+  fecha: '', punto: 'arboleda',
+  phases: {
+    prep_moto: { startTime: null, endTime: null, startedBy: null, checks: {}, notas: {} },
+    apertura: { startTime: null, endTime: null, startedBy: null, checks: {}, notas: {} },
+    cierre: { startTime: null, endTime: null, startedBy: null, checks: {}, notas: {} }
+  },
+  structure: null
+};
+
+/* ── MASTER BASELINE TEMPLATE SANEADO TOTALMENTE ── */
+var DATA = {
+  prep_moto: [
+    { id:'veh', title:'Antes de Salir — Vehículo', items:[
+      { id:'m01', label:'Moto: gasolina, batería, arranque en frío, chicote de velocidad' },
+      { id:'m02', label:'Kit de pasacorriente y herramienta básica en la moto' },
+      { id:'m03', label:'Al apagar el vehículo al llegar: luces apagadas' }
+    ]},
+    { id:'con', title:'Antes de Salir — Carga y conectividad', items:[
+      { id:'m04', label:'Módem / WiFi portátil: cargado al 100% con su cable USB' },
+      { id:'m05', label:'Tablet de Uber Eats: cargada y con datos o WiFi' },
+      { id:'m06', label:'Terminal Clip (física): cargada' },
+      { id:'m07', label:'Celular(es): mínimo 80% de batería' }
+    ]},
+    { id:'eq', title:'Antes de Salir — Equipo y mobiliario', items:[
+      { id:'m08', label:'Sándwichera(s) — verificar que encienden antes de salir' },
+      { id:'m09', label:'Extensión eléctrica + multicontacto' },
+      { id:'m10', label:'Escoba y recogedor' },
+      { id:'m11', label:'Sillas y tronco / mesa' },
+      { id:'m12', label:'Letrero luminoso' },
+      { id:'m13', label:'Gas butano — verificar nivel del cartucho' }
+    ]},
+    { id:'hiel', title:'Hielera — empacar noche anterior', items:[
+      { id:'m14', label:'Leches: entera, deslactosada, avena, almendra' },
+      { id:'m15', label:'Leche de coco: menos de 7 días desde apertura, sin olor a fermentación' },
+      { id:'m16', label:'Huevo — empacado en hielera (NO en la mañana)' },
+      { id:'m17', label:'Tocino, queso gouda, queso cheddar, jamón, pavo' },
+      { id:'m18', label:'Aguacate y limones' },
+      { id:'m19', label:'Cold brew — en recipiente de PLÁSTICO (nunca vidrio en hielera)' },
+      { id:'m20', label:'Foam de queso (si se preparó ayer): verificar menos de 24 hrs' },
+      { id:'m21', label:'Crema para batir' },
+      { id:'m22', label:'Garrafón de agua purificada' }
+    ]},
+    { id:'seco', title:'Insumos secos', items:[
+      { id:'m23', label:'Pan dulce y bollos de masa madre en caja plástica rígida' },
+      { id:'m24', label:'Vasos: 8oz, 12oz, 16oz calientes y transparentes' },
+      { id:'m25', label:'Tapas, popotes, servilletas, bolsas de papel' },
+      { id:'m26', label:'Bolsas para basura grandes' },
+      { id:'m27', label:'Galletas Lupari (stock para venta)' },
+      { id:'m28', label:'Matcha, Chai, Chocolate, Té, Tisana en botes herméticos' },
+      { id:'m29', label:'Jarabes: vainilla, caramelo, avellana, fresa, canela, amareto, horchata' }
+    ]}
+  ],
+  apertura: [
+    { id:'mont', title:'Al llegar — Montaje', items:[
+      { id:'a30', label:'Colocar lona / sombrilla / estructura inicial' },
+      { id:'a31', label:'Acomodar mesa, sillas y tronco estables' },
+      { id:'a32', label:'Montar barra de servicio limpia con trapo húmedo' },
+      { id:'a33', label:'Conectar extensión eléctrica y ocultar cables para evitar tropiezos' },
+      { id:'a34', label:'Colocar menú visible y letrero luminoso encendido' },
+      { id:'a35', label:'Colocar bote de basura con bolsa limpia al alcance del cliente' }
+    ]},
+    { id:'barr', title:'Al llegar — Estación de Bebidas', items:[
+      { id:'a36', label:'Encender máquina de espresso (esperar ciclo completo de calentamiento)' },
+      { id:'a37', label:'Verificar nivel de agua limpia en el depósito de la máquina' },
+      { id:'a38', label:'Montar molino con grano fresco (llenar tolva media capacidad)' },
+      { id:'a39', label:'Purgar molino: tirar primer disparo para limpiar residuos de ayer' },
+      { id:'a40', label:'Calibrar molienda: sacar un shot doble (test de caída 25-30 seg)' },
+      { id:'a41', label:'Llenar termo de agua caliente para Americanos y Tés' },
+      { id:'a42', label:'Colocar báscula y cronómetro listos en barra' },
+      { id:'a43', label:'Acomodar jarras de pitch (chica, mediana) y trapo exclusivo para lanceta' },
+      { id:'a44', label:'Disponer botes de Matcha/Chai/Chocolate con sus cucharas medidoras' }
+    ]},
+    { id:'coc', title:'Al llegar — Estación de Alimentos', items:[
+      { id:'a45', label:'Limpiar sándwichera y precalentar a temperatura de operación' },
+      { id:'a46', label:'Disponer tabla de corte desinfectada y cuchillo de pan' },
+      { id:'a47', label:'Montar recipientes con pinzas: jamón, tocino, quesos' },
+      { id:'a48', label:'Preparar base de guacamole del día (aguacate + limón + sal)' },
+      { id:'a49', label:'Colocar mayonesa y aderezos con su respectiva cuchara/mamilas' },
+      { id:'a50', label:'Verificar que el pan esté fresco y protegido del polvo' }
+    ]},
+    { id:'ope', title:'Apertura oficial', items:[
+      { id:'a51', label:'Abrir app de Uber Eats / DiDi Food (verificar menú activo y precios)' },
+      { id:'a52', label:'Encender terminal Clip y verificar enlace bluetooth con celular' },
+      { id:'a53', label:'Contar fondo de caja (registrar monto exacto en notas si difiere)' },
+      { id:'a54', label:'Barista e integrantes con mandil puesto y manos lavadas' },
+      { id:'a55', label:'Enviar mensaje al grupo: APERTURA COMPLETADA - [Punto de venta]' }
+    ]}
+  ],
+  cierre: [
+    { id:'apps', title:'Cierre digital y comercial', items:[
+      { id:'c01', label:'Cerrar sesión / apagar Uber Eats y DiDi Food puntualmente' },
+      { id:'c02', label:'Apagar terminal Clip y guardarla en su estuche' },
+      { id:'c03', label:'Realizar corte de caja final (contar efectivo vs reporte de ventas)' },
+      { id:'c04', label:'Separar fondo de caja base para mañana y meterlo en su bolsa' },
+      { id:'c05', label:'Registrar ventas totales y cualquier descuadre en la sección de notas' }
+    ]},
+    { id:'maqa', title:'Limpieza Barra — Máquina y Molino', items:[
+      { id:'c06', label:'Backflush de la máquina de espresso con filtro ciego (3 ciclos agua)' },
+      { id:'c07', label:'Limpiar grupos con cepillo para retirar restos de café' },
+      { id:'c08', label:'Limpiar lanceta de vapor a fondo, purgar y dejar brillante sin costras' },
+      { id:'c10', label:'Encender molino vacío para sacar todo el residuo de la cámara' },
+      { id:'c11', label:'Limpiar charola de goteo de la máquina y vaciar residuos' }
+    ]},
+    { id:'ut', title:'Limpieza Barra — Utensilios y Secos', items:[
+      { id:'c12', label:'Lavar jarras (pitchers), vasos medidores, cucharas y porta-filtros' },
+      { id:'c13', label:'Lavar y secar báscula (revisar que no quede mojada)' },
+      { id:'c14', label:'Cerrar botes de Matcha, Chai, Chocolate bien herméticos' },
+      { id:'c15', label:'Limpiar barra completa con desinfectante multiusos' }
+    ]},
+    { id:'coc_c', title:'Limpieza Cocina y Alimentos', items:[
+      { id:'c16', label:'Apagar y desenchufar sándwichera' },
+      { id:'c17', label:'Limpiar placas de la sándwichera (retirar grasa/queso quemado)' },
+      { id:'c18', label:'Tirar sobrante de guacamole del día (NO se guarda para mañana)' },
+      { id:'c19', label:'Lavar tabla de corte, cuchillos, pinzas y recipientes usados' },
+      { id:'c20', label:'Guardar pan sobrante bien cerrado para evitar que se endurezca' }
+    ]},
+    { id:'hiel_c', title:'Desmontaje y Hielera', items:[
+      { id:'c21', label:'Guardar lácteos, huevo, jamón, tocino y quesos ordenados en hielera' },
+      { id:'c22', label:'Asegurar que los geles congelados / hielo mantengan frío el producto' },
+      { id:'c23', label:'Vaciar agua residual del termo caliente' }, 
+      { id:'c24', label:'Desconectar extensión eléctrica, enrollar limpia y sin nudos' },
+      { id:'c25', label:'Apagar letrero luminoso y guardarlo protegido' },
+      { id:'c26', label:'Plegar mesas, sillas y estructura de lona con cuidado' }
+    ]},
+    { id:'fin', title:'Finalización', items:[
+      { id:'c27', label:'Amarrar bolsa de basura del día y dejarla en zona de recolección' },
+      { id:'c28', label:'Verificar que el área pública quede impecable (sin servilletas ni basura)' },
+      { id:'c29', label:'Cargar mobiliario y cajas seguro en el vehículo de transporte' },
+      { id:'c30', label:'Revisar área final: nada de objetos olvidados en el piso' },
+      { id:'c31', label:'Enviar mensaje al grupo: CIERRE COMPLETADO - Reporte de Caja OK' }
+    ]}
+  ]
+};
+
+/* ── 3. MOTORES DE ACTUALIZACIÓN DE UI ── */
+function toggleSectionCollapse(sectionId) {
+  collapsedSections[sectionId] = !collapsedSections[sectionId];
+  renderContent();
+}
+
+function updateTimeUI() {
+  var pData = state.phases[currentTab] || { startTime: null, endTime: null };
+  document.getElementById('time-start').textContent = formatTime(pData.startTime);
+  document.getElementById('time-end').textContent = formatTime(pData.endTime);
+  
+  var durationEl = document.getElementById('time-duration');
+  if (pData.startTime) {
+    var end = pData.endTime ? pData.endTime : Date.now();
+    var diffMins = Math.round((end - pData.startTime) / 60000);
+    durationEl.textContent = (diffMins < 0 ? 0 : diffMins) + ' min';
+  } else { durationEl.textContent = '0 min'; }
+}
+
+function updateWizardStatus() {
+  var keys = ['prep_moto', 'apertura', 'cierre'];
+  keys.forEach(function(k) {
+    var pData = state.phases[k] || { startTime: null, endTime: null, checks: {} };
+    var labelEl = document.getElementById('status-' + k); if (!labelEl) return;
+    var total = 0, done = 0;
+    
+    var activeStruct = (state.structure && state.structure[k]) ? state.structure[k] : DATA[k];
+    activeStruct.forEach(function(s){ s.items.forEach(function(i){ total++; if(pData.checks && pData.checks[i.id] && pData.checks[i.id].checked) done++; })});
+    
+    if (pData.endTime) {
+      labelEl.innerHTML = "Listo ✓"; labelEl.style.color = "var(--accent-green)";
+    } else if (pData.startTime || k === currentTab) {
+      labelEl.innerHTML = "En proceso ⏳"; labelEl.style.color = "var(--accent-blue)";
+    } else { labelEl.innerHTML = "Pendiente 🔒"; labelEl.style.color = "var(--text-muted)"; }
+  });
+  
+  var flowBtn = document.getElementById('btn-next-phase');
+  var isCurrentLocked = !!(state.phases[currentTab] && state.phases[currentTab].endTime);
+  
+  if (!isCurrentLocked && currentTab === 'prep_moto') {
+    flowBtn.innerHTML = "Fase 1 completada. Cerrar y pasar a Apertura ➔"; flowBtn.style.display = "flex";
+  } else if (!isCurrentLocked && currentTab === 'apertura') {
+    flowBtn.innerHTML = "Fase 2 completada. Cerrar y pasar a Cierre ➔"; flowBtn.style.display = "flex";
+  } else { flowBtn.style.display = "none"; }
+}
+
+function updateProgress() {
+  var pData = state.phases[currentTab] || { checks: {} }; var total = 0, done = 0;
+  var activeStruct = (state.structure && state.structure[currentTab]) ? state.structure[currentTab] : DATA[currentTab];
+  
+  activeStruct.forEach(function(sec) {
+    
+    sec.items.forEach(function(item) { total++; if (pData.checks && pData.checks[item.id] && pData.checks[item.id].checked) done++; });
+  });
+  
+  var pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  var pctDisplay = document.getElementById('kpi-pct-display');
+  var counterDisplay = document.getElementById('kpi-counter-display');
+  var barFill = document.getElementById('kpi-bar-fill');
+
+  if (pctDisplay) { pctDisplay.textContent = pct + '%'; pctDisplay.classList.toggle('done', pct === 100); }
+  if (counterDisplay) { counterDisplay.textContent = done + " / " + total + " Tareas"; }
+  if (barFill) { barFill.style.width = pct + '%'; barFill.classList.toggle('done', pct === 100); }
+}
+
+function renderContent() {
+  var container = document.getElementById('content'); if (!container) return;
+  var pData = state.phases[currentTab] || { startTime: null, endTime: null, checks: {}, startedBy: null };
+  
+  var isLocked = !!pData.endTime; 
+  var isStarted = !!pData.startTime; 
+  var query = document.getElementById('search-input') ? document.getElementById('search-input').value.toLowerCase() : '';
+  var html = '';
+  
+  var startBtn = document.getElementById('btn-time-control');
+  var adminZone = document.getElementById('admin-time-override-zone');
+  var badgeEl = document.getElementById('started-by-badge');
+  
+  if (startBtn) {
+    if (isLocked) {
+      startBtn.textContent = "🔒 Fase Completada y Sellada";
+      startBtn.className = "btn-time-starter started";
+    } else if (isStarted) {
+      startBtn.textContent = "🟢 Checklist Iniciado";
+      startBtn.className = "btn-time-starter started";
+    } else {
+      var namesMap = { prep_moto: "Fase 1: Prep. Moto", apertura: "Fase 2: Apertura", cierre: "Fase 3: Cierre" };
+      startBtn.innerHTML = "▶️ Empezar Checklist " + (namesMap[currentTab] || currentTab);
+      startBtn.className = "btn-time-starter";
+    }
+  }
+
+  // Saneamiento de badge discreto por requerimiento del usuario
+  if (badgeEl) {
+    if (isStarted && !isLocked) {
+      badgeEl.innerHTML = "👤 Iniciado por: " + (pData.startedBy || "Operador") + " (" + formatTime(pData.startTime) + ")";
+      badgeEl.style.display = "block";
+    } else {
+      badgeEl.style.display = "none";
+    }
+  }
+
+  if (userSession.isAdmin) {
+     if (adminZone) {
+       adminZone.innerHTML = '<button class="btn-admin-override" style="color:var(--accent-amber);" onclick="pausePhaseTime()">⏸️ Pausar</button>' +
+                             '<button class="btn-admin-override" style="color:var(--accent-red);" onclick="resetPhaseTime()">🔄 Reiniciar</button>';
+     }
+  } else { if(adminZone) adminZone.innerHTML = ''; }
+
+  var masterZone = document.getElementById('admin-master-zone');
+  if (masterZone) {
+    masterZone.innerHTML = userSession.isAdmin ? '<button class="btn-admin-master-add" onclick="addAdminCategory()">+ Crear Nueva Categoría / Sección</button>' : '';
+  }
+
+  if (isLocked) {
+    html += '<div class="phase-lock-banner"><span>🔒 Esta fase está cerrada. No se permiten modificaciones en tareas.</span>';
+    if (userSession.isAdmin) { html += '<button class="btn-unlock-phase" onclick="unlockActivePhase()">🔓 Desbloquear</button>'; }
+    html += '</div>';
+  }
+
+  var activeStruct = (state.structure && state.structure[currentTab]) ? state.structure[currentTab] : DATA[currentTab];
+  
+  activeStruct.forEach(function(sec) {
+    if (!sec.items) sec.items = []; 
+    var filtered = sec.items.filter(function(i) { return i.label.toLowerCase().includes(query) || sec.title.toLowerCase().includes(query); });
+    if (filtered.length === 0 && query !== '') return;
+    var sTotal = sec.items.length; var sDone = sec.items.filter(function(i){ return pData.checks && pData.checks[i.id] && pData.checks[i.id].checked; }).length;
+    
+    var isCollapsed = !!collapsedSections[sec.id];
+    var arrowIndicator = isCollapsed ? '►' : '▼';
+    var bodyClass = isCollapsed ? 'section-collapsible-body is-collapsed' : 'section-collapsible-body';
+
+    html += '<div class="section">';
+    html += '<div class="section-hdr" onclick="toggleSectionCollapse(\'' + sec.id + '\')">';
+    html += '<div class="section-hdr-left">';
+    html += '<span class="section-collapse-indicator">' + arrowIndicator + '</span>';
+    html += '<h3>' + sec.title + '</h3>';
+    
+    var speakBtnId = "v-btn-" + sec.id;
+    html += '<button class="btn-category-voice" id="' + speakBtnId + '" onclick="event.stopPropagation(); toggleCategoryVoice(\'' + sec.id + '\')">🎙️ Asistente</button>';
+    html += '</div>';
+
+    html += '<div class="section-hdr-right">';
+    html += '<span class="section-count ' + (sDone === sTotal ? 'done' : '') + '">' + sDone + ' / ' + sTotal + '</span>';
+    
+    if (userSession.isAdmin) {
+      html += '<button class="btn-admin-action" onclick="event.stopPropagation(); editAdminCategory(\''+sec.id+'\')">✏️</button>';
+      html += '<button class="btn-admin-action" style="color:var(--accent-red);" onclick="event.stopPropagation(); deleteAdminCategory(\''+sec.id+'\')">🗑️</button>';
+    }
+    html += '</div></div>';
+    
+    html += '<div class="' + bodyClass + '">';
+    html += '<div class="check-list">';
+    
+    filtered.forEach(function(item) {
+      var cRecord = pData.checks ? pData.checks[item.id] : null; var isChecked = cRecord && cRecord.checked;
+      
+      var isActionDisabled = isLocked || !isStarted;
+      var itemAction = isActionDisabled ? '' : 'onclick="toggleCheck(\'' + item.id + '\', \'' + item.label.replace(/'/g, "\\'") + '\')"';
+      var checkDisabled = isActionDisabled ? 'disabled' : '';
+      var visualClass = !isStarted ? 'check-item disabled-blueprint' : 'check-item';
+
+      html += '<div class="' + visualClass + ' ' + (isChecked ? 'is-checked' : '') + '" ' + itemAction + '>';
+      html += '<div class="check-item-left">';
+      html += '<div class="check-box"><input type="checkbox" ' + (isChecked ? 'checked' : '') + ' ' + checkDisabled + ' onclick="event.stopPropagation(); if(!' + isActionDisabled + ') toggleCheck(\'' + item.id + '\', \'' + item.label.replace(/'/g, "\\'") + '\')"></div>';
+      html += '<div class="check-text-container"><div class="check-text">' + item.label + '</div>';
+      if (isChecked && cRecord.user) { html += '<div class="check-signature">✓ por ' + cRecord.user + ' (' + formatTime(cRecord.timestamp) + ')</div>'; }
+      html += '</div></div>';
+      
+      if (userSession.isAdmin) {
+        html += '<div class="admin-actions-wrap">';
+        html += '<button class="btn-admin-action" onclick="event.stopPropagation(); editAdminTask(\''+sec.id+'\', \''+item.id+'\')">✏️</button>';
+        html += '<button class="btn-admin-action" style="color:var(--accent-red);" onclick="event.stopPropagation(); deleteAdminTask(\''+sec.id+'\', \''+item.id+'\')">🗑️</button>';
+        html += '</div>';
+      }
+
+      html += '</div>';
+    });
+    html += '</div>';
+    
+    if (userSession.isAdmin) {
+      html += '<button class="btn-admin-add" onclick="addAdminTask(\''+sec.id+'\')">+ Agregar Tarea a sección</button>';
+    }
+    html += '</div></div>';
+  });
+  container.innerHTML = html;
+}
+
+/* ── 4. DETECCION ASÍNCRONA DE USUARIO NATIVA VIA API JSON-RPC ── */
+async function detectOdooUser() {
+  var savedName = localStorage.getItem('lupari_ops_username');
+  if (savedName) { userSession.name = savedName; }
+
+  // FIX LOCALHOST/FILE PROTOCOL: Aborto pacífico inteligente si corres local fuera de Odoo
+  if (window.location.protocol === 'file:') {
+    console.warn("[LUPARI DEBUGER] Ejecución local detectada. Simulando entorno Odoo.");
+    userSession.isAdmin = true; // Forzar privilegios para tus pruebas locales en Mac
+    document.getElementById('user-display-name').value = "Mario Admin Local";
+    var roleEl = document.getElementById('user-display-role');
+    if (roleEl) { roleEl.textContent = "Admin"; roleEl.className = "user-role role-admin"; }
+    return;
+  }
+
+  try {
+    var response = await fetch('/web/session/get_session_info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: "2.0", method: "call", params: {} })
+    });
+
+    if (!response.ok) throw new Error("Falla en red");
+
+    var jsonResponse = await response.json();
+    var rootInfo = jsonResponse.result;
+
+    if (rootInfo) {
+      var detectedName = rootInfo.name || rootInfo.partner_display_name;
+      if (detectedName) {
+        userSession.name = detectedName;
+        localStorage.setItem('lupari_ops_username', detectedName);
+      }
+      userSession.isAdmin = !!(rootInfo.is_admin || rootInfo.is_system || rootInfo.uid === 7);
+    }
+  } catch (e) {
+    var urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('role') === 'admin') userSession.isAdmin = true;
+    if (urlParams.get('user')) userSession.name = urlParams.get('user');
+  }
+
+  var nameInput = document.getElementById('user-display-name');
+  if (nameInput) nameInput.value = userSession.name;
+
+  var roleEl = document.getElementById('user-display-role');
+  var historyPanel = document.getElementById('admin-history-panel');
+
+  if (roleEl) {
+    if (userSession.isAdmin) {
+      roleEl.textContent = "Admin"; roleEl.className = "user-role role-admin";
+      if (historyPanel) historyPanel.style.display = 'block';
+    } else {
+      roleEl.textContent = "Operador"; roleEl.className = "user-role role-colab";
+      if (historyPanel) historyPanel.style.display = 'none';
+    }
+  }
+}
+
+function manualNameChange(newName) {
+  var cleanName = newName.trim() || "Operador de Barra";
+  userSession.name = cleanName;
+  localStorage.setItem('lupari_ops_username', cleanName);
+  saveStateToCloud();
+}
+
+/* ── 5. MÓDULO SINCRO DE CONEXIÓN CON LA NUBE FIREBASE ── */
+function syncFromCloud() {
+  var f = document.getElementById('fecha') ? document.getElementById('fecha').value : getTodayISO();
+  var p = document.getElementById('punto') ? document.getElementById('punto').value : 'arboleda';
+  state.fecha = f; state.punto = p;
+  hasAutoFocused = false; 
+  if (firebaseRef) firebaseRef.off();
+
+  firebaseRef = db.ref('lupari_ops_v3/' + p + '/' + f);
+  firebaseRef.on('value', function(snapshot) {
+    var cloud = snapshot.val();
+    if (!state.phases) state.phases = { prep_moto:{}, apertura:{}, cierre:{} };
+    
+    if (cloud) {
+      state.fecha = cloud.fecha || f; state.punto = cloud.punto || p;
+      var cloudPhases = cloud.phases || {};
+      ['prep_moto', 'apertura', 'cierre'].forEach(function(k) {
+        if (!state.phases[k]) state.phases[k] = { startTime: null, endTime: null, startedBy: null, checks: {}, notas: {} };
+        state.phases[k].startTime = cloudPhases[k] ? cloudPhases[k].startTime : null;
+        state.phases[k].endTime = cloudPhases[k] ? cloudPhases[k].endTime : null;
+        state.phases[k].startedBy = cloudPhases[k] ? (cloudPhases[k].startedBy || null) : null;
+        state.phases[k].checks = cloudPhases[k] ? cloudPhases[k].checks : {};
+        state.phases[k].notes = cloudPhases[k] ? (cloudPhases[k].notas || {}) : {};
+      });
+      state.structure = cloud.structure || JSON.parse(JSON.stringify(DATA));
+    } else {
+      resetStateObj();
+    }
+
+    if (!hasAutoFocused) {
+      var targetTab = 'prep_moto';
+      if (state.phases.prep_moto.endTime) {
+        targetTab = 'apertura';
+        if (state.phases.apertura.endTime) { targetTab = 'cierre'; }
+      }
+      currentTab = targetTab;
+      hasAutoFocused = true;
+    }
+
+    document.querySelectorAll('.wizard-step').forEach(function(el) { el.classList.toggle('active', el.id === 'wiz-' + currentTab); });
+
+    renderNotesLog();
+    var phaseTitleEl = document.getElementById('notes-phase-title');
+    if (phaseTitleEl) {
+      var names = { prep_moto: 'Prep. Moto', apertura: 'Apertura', cierre: 'Cierre' };
+      phaseTitleEl.textContent = names[currentTab];
+    }
+
+    renderContent(); updateProgress(); updateTimeUI(); updateWizardStatus();
+  });
+}
+
+function saveStateToCloud() { if(db && state.punto && state.fecha) db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha).set(state); }
+
+function triggerPhaseStart() {
+  var pData = state.phases[currentTab];
+  if (pData && pData.startTime) return;
+
+  var ready = confirm("🔔 ¿Estás listo para iniciar la auditoría de esta fase?\n\nEl cronómetro operativo empezará a correr en este momento y registrará tu firma de inicio.");
+  if (!ready) return;
+
+  var now = Date.now();
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/phases/' + currentTab + '/startTime').set(now);
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/phases/' + currentTab + '/startedBy').set(userSession.name);
+}
+
+function pausePhaseTime() {
+  if (!userSession.isAdmin) return;
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/phases/' + currentTab + '/startTime').set(null);
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/phases/' + currentTab + '/startedBy').set(null);
+}
+
+function resetPhaseTime() {
+  if (!userSession.isAdmin) return;
+  if (!confirm("🚨 ¿Deseas restablecer de raíz los tiempos y checks de esta fase para el día de hoy?")) return;
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/phases/' + currentTab + '/startTime').set(null);
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/phases/' + currentTab + '/endTime').set(null);
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/phases/' + currentTab + '/startedBy').set(null);
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/phases/' + currentTab + '/checks').set(null);
+}
+
+function toggleCheck(id, labelText) {
+  var pData = state.phases[currentTab];
+  if (!pData || !pData.startTime || pData.endTime) return; 
+
+  var isChecked = pData.checks && pData.checks[id] && pData.checks[id].checked;
+  var updatedItem = { checked: !isChecked, user: userSession.name, timestamp: Date.now(), label: labelText };
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/phases/' + currentTab + '/checks/' + id).set(updatedItem);
+}
+
+function unlockActivePhase() {
+  if (!userSession.isAdmin) return;
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/phases/' + currentTab + '/endTime').set(null);
+}
+
+/* 🔒 BLINDAJE INTERCEPTOR DE SEGURIDAD REACTIVO RE-ESTRUCTURADO SIN FALLAS */
+function advanceWorkflow() {
+  if (isSpeaking) cancelVoiceAssistant();
+
+  var pData = state.phases[currentTab] || { checks: {} }; var total = 0, done = 0;
+  var activeStruct = (state.structure && state.structure[currentTab]) ? state.structure[currentTab] : DATA[currentTab];
+  
+  activeStruct.forEach(function(sec) {
+    if (sec && sec.items) {
+      sec.items.forEach(function(item) { 
+        total++; 
+        if (pData.checks && pData.checks[item.id] && pData.checks[item.id].checked) done++; 
+      });
+    }
+  });
+
+  if (done < total) {
+    alert("⚠️ Bloqueo de Seguridad: No puedes completar la fase hasta que todas las tareas (" + done + "/" + total + ") estén marcadas.");
+    return;
+  }
+
+  var now = Date.now();
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/phases/' + currentTab + '/endTime').set(now).then(function() {
+    if (currentTab === 'prep_moto') switchTab('apertura');
+    else if (currentTab === 'apertura') switchTab('cierre');
+  });
+}
+
+/* CRUD ESTRUCTURAL */
+function editAdminTask(sectionId, taskId) {
+  if (!userSession.isAdmin) return;
+  var targetItem = null;
+  state.structure[currentTab].forEach(function(sec) {
+    if (sec.id === sectionId) { sec.items.forEach(function(i) { if (i.id === taskId) targetItem = i; }); }
+  });
+  if (!targetItem) return;
+  var res = prompt("Modificar texto de la tarea operativa:", targetItem.label);
+  if (res && res.trim() !== "") {
+    targetItem.label = res.trim();
+    db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/structure').set(state.structure);
+  }
+}
+
+function deleteAdminTask(sectionId, taskId) {
+  if (!userSession.isAdmin) return;
+  if (!confirm("¿Deseas remover esta tarea de la estructura de hoy?")) return;
+  state.structure[currentTab].forEach(function(sec) {
+    if (sec.id === sectionId) { sec.items = sec.items.filter(function(i) { return i.id !== taskId; }); }
+  });
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/structure').set(state.structure);
+}
+
+function addAdminTask(sectionId) {
+  if (!userSession.isAdmin) return;
+  var res = prompt("Escribe la descripción de la nueva tarea operativa:");
+  if (!res || res.trim() === "") return;
+  state.structure[currentTab].forEach(function(sec) {
+    if (sec.id === sectionId) {
+      var uniqueId = 'tsk_' + Date.now();
+      sec.items.push({ id: uniqueId, label: res.trim() });
+    }
+  });
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/structure').set(state.structure);
+}
+
+function addAdminCategory() {
+  if (!userSession.isAdmin) return;
+  var res = prompt("Escribe el título para la nueva Sección / Categoría:");
+  if (!res || res.trim() === "") return;
+  if (!state.structure[currentTab]) state.structure[currentTab] = [];
+  var cleanId = 'sec_' + Date.now();
+  state.structure[currentTab].push({ id: cleanId, title: res.trim(), items: [] });
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/structure').set(state.structure);
+}
+
+function editAdminCategory(sectionId) {
+  if (!userSession.isAdmin) return;
+  var targetSec = state.structure[currentTab].find(function(s) { return s.id === sectionId; });
+  if (!targetSec) return;
+  var res = prompt("Modificar el nombre de la Categoría:", targetSec.title);
+  if (res && res.trim() !== "") {
+    targetSec.title = res.trim();
+    db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/structure').set(state.structure);
+  }
+}
+
+function deleteAdminCategory(sectionId) {
+  if (!userSession.isAdmin) return;
+  if (!confirm("🚨 ¡ADVERTENCIA CRÍTICA!\n\n¿Estás seguro de eliminar esta sección completa con todas sus tareas hijas asociadas?")) return;
+  state.structure[currentTab] = state.structure[currentTab].filter(function(s) { return s.id !== sectionId; });
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/structure').set(state.structure);
+}
+
+function switchTab(tab) { 
+  if (isSpeaking) cancelVoiceAssistant();
+  currentTab = tab; 
+  document.querySelectorAll('.wizard-step').forEach(function(el) { el.classList.toggle('active', el.id === 'wiz-' + currentTab); }); 
+  if(document.getElementById('search-input')) document.getElementById('search-input').value = ''; 
+  
+  renderContent(); updateProgress(); updateTimeUI(); renderNotesLog();
+  
+  var phaseTitleEl = document.getElementById('notes-phase-title');
+  if (phaseTitleEl) {
+    var names = { prep_moto: 'Prep. Moto', apertura: 'Apertura', cierre: 'Cierre' };
+    phaseTitleEl.textContent = names[tab] || tab;
+  }
+}
+
+function filterChecklist() { renderContent(); }
+
+function renderNotesLog() {
+  var container = document.getElementById('notes-log-container'); if (!container) return;
+  container.innerHTML = '';
+  var currentPhaseData = state.phases[currentTab];
+  var notasObj = currentPhaseData ? currentPhaseData.notes : null;
+
+  // 📝 FIXED PACK: Corrección de variable 'notesObj' a 'notasObj' para evitar excepciones en Firebase
+  if (!notasObj || Object.keys(notasObj).length === 0) {
+    container.innerHTML = '<div style="font-size:12px; color:var(--text-muted); text-align:center; padding:12px;">No hay novedades para esta fase.</div>';
+    return;
+  }
+  var list = []; for (var key in notasObj) { list.push(notasObj[key]); }
+  list.sort(function(a, b) { return a.timestamp - b.timestamp; });
+  list.forEach(function(note) {
+    var entry = document.createElement('div'); entry.className = 'note-entry';
+    entry.innerHTML = '<div class="note-meta"><span class="note-user">✏️ ' + note.user + '</span><span class="note-time">' + formatTime(note.timestamp) + '</span></div><div class="note-text">' + note.text + '</div>';
+    container.appendChild(entry);
+  });
+  container.scrollTop = container.scrollHeight;
+}
+
+function addPhaseNote() {
+  var inputEl = document.getElementById('notes-input'); if (!inputEl) return;
+  var txt = inputEl.value.trim(); if (!txt) return;
+  var noteData = { user: userSession.name, text: txt, timestamp: Date.now() };
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/phases/' + currentTab + '/notas').push(noteData).then(function() {
+    inputEl.value = '';
+  });
+}
+
+/* ── 🎙️ AUDIO-MOTOR ── */
+function toggleCategoryVoice(sectionId) {
+  if (!('speechSynthesis' in window)) { alert("⚠️ Tu dispositivo no soporta comandos de voz."); return; }
+  var btnId = "v-btn-" + sectionId;
+  if (isSpeaking && currentSpeakingBtnId === btnId) { cancelVoiceAssistant(); return; }
+  if (isSpeaking) { cancelVoiceAssistant(); }
+
+  var pData = state.phases[currentTab] || { checks: {} };
+  var activeStruct = (state.structure && state.structure[currentTab]) ? state.structure[currentTab] : DATA[currentTab];
+  var targetSection = activeStruct.find(function(s) { return s.id === sectionId; });
+  if (!targetSection) return;
+
+  var pendingItems = [];
+  targetSection.items.forEach(function(item) {
+    var isChecked = pData.checks && pData.checks[item.id] && pData.checks[item.id].checked;
+    if (!isChecked) pendingItems.push(item.label);
+  });
+
+  if (pendingItems.length === 0) {
+    speakText("Sección completada. No hay tareas pendientes en " + targetSection.title, btnId); return;
+  }
+
+  isSpeaking = true; currentSpeakingBtnId = btnId;
+  var activeBtn = document.getElementById(btnId); if (activeBtn) { activeBtn.textContent = "⏹️ Detener"; activeBtn.classList.add('playing'); }
+
+  var script = "Pendientes en: " + targetSection.title + ". ";
+  pendingItems.forEach(function(text, idx) { script += "Número " + (idx + 1) + ": " + text + ".      ...      "; });
+  speakText(script, btnId);
+}
+
+function speakText(textString, btnId) {
+  window.speechSynthesis.cancel();
+  speechUtterance = new SpeechSynthesisUtterance(textString);
+  var voices = window.speechSynthesis.getVoices();
+  var mxVoice = voices.find(function(v) { return (v.name.includes("Marisol") || v.name.includes("Siri") || v.name.includes("Sabina") || v.name.includes("Mexico")) && v.lang === "es-MX"; }) ||
+                voices.find(function(v) { return v.lang === "es-MX"; }) || voices.find(function(v) { return v.lang.startsWith("es"); });
+  if (mxVoice) speechUtterance.voice = mxVoice;
+  speechUtterance.lang = 'es-MX'; speechUtterance.rate = 0.92; speechUtterance.pitch = 1.0;
+  speechUtterance.onend = function() { cancelVoiceAssistant(); };
+  speechUtterance.onerror = function() { cancelVoiceAssistant(); };
+  window.speechSynthesis.speak(speechUtterance);
+}
+
+function cancelVoiceAssistant() {
+  isSpeaking = false; window.speechSynthesis.cancel();
+  if (currentSpeakingBtnId) {
+    var oldBtn = document.getElementById(currentSpeakingBtnId);
+    if (oldBtn) { oldBtn.textContent = "🎙️ Asistente"; oldBtn.classList.remove('playing'); }
+  }
+  currentSpeakingBtnId = null;
+}
+
+if ('speechSynthesis' in window) { window.speechSynthesis.getVoices(); window.speechSynthesis.onvoiceschanged = function() { window.speechSynthesis.getVoices(); }; }
+
+function cleanOdooWrapperLayout() {
+  try {
+    var pivot = document.querySelector('#lupari-root-node'); if (!pivot) return;
+    var embeddedBox = pivot.closest('.s_embed_code_embedded');
+    if (embeddedBox) {
+      embeddedBox.style.setProperty('background-color', '#09090b', 'important');
+      embeddedBox.style.setProperty('padding', '0', 'important');
+      embeddedBox.style.setProperty('max-width', '100%', 'important');
+      embeddedBox.style.setProperty('width', '100%', 'important');
+    }
+    var embedSection = pivot.closest('section.s_embed_code');
+    if (embedSection) {
+      embedSection.style.setProperty('background-color', '#09090b', 'important');
+      embedSection.style.setProperty('padding-top', '0', 'important');
+      embedSection.style.setProperty('padding-bottom', '0', 'important');
+      embedSection.style.setProperty('padding-left', '0', 'important');
+      embedSection.style.setProperty('padding-right', '0', 'important');
+      embedSection.style.setProperty('margin', '0', 'important');
+      embedSection.style.setProperty('max-width', '100%', 'important');
+      embedSection.style.setProperty('width', '100%', 'important');
+    }
+  } catch (err) { console.warn("Layout lock."); }
+}
+
+function resetStateObj() { 
+  state.fecha = document.getElementById('fecha') ? document.getElementById('fecha').value : getTodayISO(); 
+  state.punto = document.getElementById('punto') ? document.getElementById('punto').value : 'arboleda'; 
+  state.phases = { 
+    prep_moto: { startTime: null, endTime: null, startedBy: null, checks: {}, notas: {} }, 
+    apertura: { startTime: null, endTime: null, startedBy: null, checks: {}, notas: {} }, 
+    cierre: { startTime: null, endTime: null, startedBy: null, checks: {}, notas: {} } 
+  }; 
+  state.structure = JSON.parse(JSON.stringify(DATA)); 
+  var container = document.getElementById('notes-log-container'); if (container) container.innerHTML = '';
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/structure').set(state.structure);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  cleanOdooWrapperLayout(); detectOdooUser();
+  var fechaEl = document.getElementById('fecha'); var puntoEl = document.getElementById('punto');
+  if (fechaEl && !state.fecha) state.fecha = getTodayISO();
+  if (fechaEl) fechaEl.value = state.fecha; if (puntoEl) puntoEl.value = state.punto;
+  
+  syncFromCloud();
+
+  if (fechaEl) fechaEl.addEventListener('change', function() { syncFromCloud(); });
+  if (puntoEl) puntoEl.addEventListener('change', function() { syncFromCloud(); });
+});
+
+setInterval(cleanOdooWrapperLayout, 2000);
+setInterval(function() { if (state.phases && state.phases[currentTab] && state.phases[currentTab].startTime && !state.phases[currentTab].endTime) { updateTimeUI(); } }, 15000);
+</script>

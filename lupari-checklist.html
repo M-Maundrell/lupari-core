@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Lupari Ops</title>
+
+  <script>
+    document.documentElement.style.display = 'none';
+    fetch('/web/session/get_session_info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: {} })
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+      var info = data.result;
+      var isPublic = !info || info.is_public || (!info.name && !info.partner_display_name);
+      var isLoginPath = window.location.pathname.indexOf('/web/login') !== -1;
+      if (isPublic && !isLoginPath) {
+        window.location.replace('/web/login?redirect=' + encodeURIComponent(window.location.pathname));
+      } else {
+        document.documentElement.style.display = '';
+      }
+    })
+    .catch(function() { document.documentElement.style.display = ''; });
+  </script>
+
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+  <style>
+  :root {
+    --bg-main: #09090b; --bg-card: #18181b; --bg-input: #27272a; --border-color: #3f3f46;
+    --text-main: #f4f4f5; --text-muted: #a1a1aa; --accent-blue: #3b82f6; --accent-green: #22c55e;
+    --accent-amber: #f59e0b; --accent-red: #ef4444;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+
+  .lupari-app-wrapper {
+    background-color: #09090b !important;
+    color: #f4f4f5 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+    letter-spacing: -0.2px;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+  }
+
+  .lupari-app-wrapper h1, .lupari-app-wrapper h3, .lupari-app-wrapper span, .lupari-app-wrapper div {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  }
+
+  .top-bar{background:var(--bg-card);border-bottom:1px solid var(--border-color);padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
+  .top-bar h1 { font-size: 18px !important; font-weight: 700 !important; color: #fff !important; }
+  .top-bar p { font-size: 12px !important; color: var(--text-muted) !important; margin-bottom: 0 !important; }
+
+  .user-badge { background: var(--bg-input); border: 1px solid var(--border-color); padding: 4px 10px; border-radius: 20px; font-size:12px; display:flex; align-items:center; gap:6px; }
+  .user-badge input { background:transparent; border:none; color:#fff !important; font-size:12px; font-weight:600; width:120px; outline:none; }
+  .user-badge input:focus { outline:none; }
+  .user-role { font-size:9px; text-transform:uppercase; padding:2px 6px; border-radius:10px; font-weight:700; }
+  .role-admin { background: rgba(59,130,246,0.2); color: var(--accent-blue); }
+  .role-colab { background: rgba(34,197,94,0.15); color: var(--accent-green); }
+
+  .rules-container { padding: 4px 16px 0; }
+  .rules-wrap{background:rgba(245,158,11,0.02); border:1px solid rgba(245,158,11,0.12); border-left:4px solid var(--accent-amber); padding:12px; border-radius:0 8px 8px 0; margin-top:10px;}
+  .rules-wrap h3{font-size:11px !important;font-weight:800 !important;text-transform:uppercase;color:var(--accent-amber);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+  .rule{display:flex;gap:10px;align-items:flex-start;margin-bottom:6px;font-size:12.5px;line-height:1.4; color: #f4f4f5 !important;}
+  .rule-n{font-weight:800;color:var(--accent-amber);background:rgba(245,158,11,0.08); width:18px; height:18px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-size:10px; flex-shrink:0}
+
+  .kpi-dashboard-widget {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-color);
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+  .kpi-metric-box { display: flex; flex-direction: column; gap: 2px; }
+  .kpi-lbl { font-size: 9px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px; }
+  .kpi-pct-value { font-size: 38px; font-weight: 800; line-height: 1.1; color: var(--accent-blue); transition: color 0.3s ease; }
+  .kpi-pct-value.done { color: var(--accent-green); }
+  .kpi-counter-value { font-size: 13px; font-weight: 600; color: #fff; }
+  .kpi-progress-bar-container { flex: 1; height: 8px; background: var(--bg-input); border-radius: 4px; overflow: hidden; position: relative; }
+  .kpi-progress-fill { height: 100%; width: 0%; background: var(--accent-blue); border-radius: 4px; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease; }
+  .kpi-progress-fill.done { background: var(--accent-green); }
+
+  .wizard-container { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 12px 16px 4px; }
+  .wizard-step { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; transition: all 0.2s ease; }
+  .wizard-step.active { border-color: var(--accent-blue); background: rgba(59, 130, 246, 0.05); box-shadow: 0 0 12px rgba(59,130,246,0.15); }
+  .wizard-step-num { font-size: 9px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; }
+  .wizard-step.active .wizard-step-num { color: var(--accent-blue); }
+  .wizard-step-name { font-size: 13px; font-weight: 700; color: #fff; }
+  .wizard-step-status { font-size: 11px; color: var(--text-muted); font-weight: 600; }
+
+  .time-widget { background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 8px; margin: 6px 16px 4px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
+  .time-item { display: flex; flex-direction: column; gap: 1px; }
+  .time-lbl { font-size: 9px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
+  .time-val { font-weight: 600; color: #fff; }
+  .time-val.active { color: var(--accent-blue); font-weight: 700; }
+
+  .time-master-control-panel {
+    background: rgba(59, 130, 246, 0.02);
+    border: 1px dashed rgba(59, 130, 246, 0.2);
+    border-radius: 10px;
+    margin: 10px 16px 2px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+  }
+  @media(min-width: 480px) {
+    .time-master-control-panel { flex-direction: row; align-items: center; justify-content: space-between; }
+  }
+  .btn-time-starter {
+    background: var(--accent-blue);
+    color: #fff;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex: 1;
+    transition: background-color 0.2s ease;
+  }
+  .btn-time-starter.started {
+    background: rgba(34, 197, 94, 0.15) !important;
+    color: var(--accent-green) !important;
+    border: 1px solid rgba(34, 197, 94, 0.3) !important;
+    cursor: default;
+  }
+  .admin-time-override-wrap { display: flex; gap: 8px; justify-content: flex-end; }
+  .btn-admin-override {
+    padding: 8px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    background: var(--bg-input);
+    color: var(--text-main);
+  }
+
+  .started-by-badge {
+    font-size: 11px;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-color);
+    padding: 4px 10px;
+    border-radius: 6px;
+    margin: 6px 16px 0;
+    width: fit-content;
+    display: none;
+    font-weight: 500;
+  }
+
+  .meta{background:var(--bg-card);border-bottom:1px solid var(--border-color);padding:14px 16px;display:flex;flex-direction:column;gap:14px;margin-top:10px}
+  @media (min-width: 480px) {
+    .meta { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+  }
+  .meta label{display:flex;flex-direction:column;gap:5px; width: 100% !important;}
+  .meta .lbl{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.3px}
+  .meta input,.meta select{border:1px solid var(--border-color);border-radius:8px;padding:10px 12px;font-size:14px;background:var(--bg-input);color:#fff;outline:none; width: 100% !important;}
+
+  .search-container { padding: 8px 16px 4px; }
+  .search-box-wrap { position: relative; width: 100%; }
+  .search-box-wrap input { width: 100%; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px 10px 36px; font-size: 14px; background: var(--bg-card); color: #fff; outline: none; }
+  .search-box-wrap::before { content: ""; position: absolute; left: 12px; top: 13px; width: 14px; height: 14px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23a1a1aa' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' /%3E%3C/svg%3E"); background-size: contain; background-repeat: no-repeat; }
+
+  .content{padding:0 0 10px !important}
+  .section{background:var(--bg-card);margin-top:10px;border-top:1px solid var(--border-color);border-bottom:1px solid var(--border-color)}
+
+  .section-hdr{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;user-select:none;}
+  .section-hdr:hover { background: rgba(255,255,255,0.01); }
+  .section-hdr-left { display: flex; align-items: center; gap: 10px; flex: 1; }
+  .section-hdr h3{font-size:11px !important;font-weight:700 !important;text-transform:uppercase;color:var(--text-main);letter-spacing:0.5px}
+  .section-collapse-indicator { font-size: 10px; color: var(--text-muted); transition: transform 0.2s ease; }
+  .section-hdr-right { display: flex; align-items: center; gap: 8px; }
+  .section-count{font-size:11px;font-weight:700;color:var(--text-muted);background:var(--bg-input);padding:2px 8px;border-radius:20px}
+  .section-count.done{color:#fff;background:var(--accent-green)}
+
+  .section-collapsible-body { display: block; }
+  .section-collapsible-body.is-collapsed { display: none; }
+
+  .check-list{padding:2px 0 6px}
+  .check-item{display:flex;align-items:center;justify-content:space-between;padding:0;cursor:pointer;border-top:1px solid var(--border-color);min-height:52px;}
+  .check-item.disabled-blueprint { opacity: 0.35; cursor: not-allowed; }
+  .check-item-left { display:flex; align-items:flex-start; flex:1; }
+  .check-box{width:52px;min-width:52px;min-height:52px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .check-box input[type="checkbox"]{width:20px;height:20px;accent-color:var(--accent-blue);cursor:pointer}
+  .check-text-container { flex:1; padding:14px 0; display:flex; flex-direction:column; gap:2px; }
+  .check-text{font-size:14px;line-height:1.45;color:var(--text-main)}
+  .check-signature { font-size: 11px; color: var(--accent-green); font-weight: 600; display: flex; align-items: center; gap: 4px; background: rgba(34, 197, 94, 0.05); padding: 2px 6px; border-radius: 4px; width: fit-content; }
+  .check-item.is-checked{background:rgba(34, 197, 94, 0.01)}
+  .check-item.is-checked .check-text{color:var(--text-muted);text-decoration:line-through}
+
+  .flow-navigation-wrap { padding: 20px 16px; display: flex; justify-content: center; }
+  .btn-flow { width: 100%; background: rgba(59, 130, 246, 0.08); color: var(--accent-blue); border: 1px solid rgba(59,130,246,0.25); padding: 14px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+  .history-wrap { background:var(--bg-card); margin-top:10px; padding:16px; border-top:1px solid var(--border-color); border-bottom:1px solid var(--border-color); display:none; }
+  .history-wrap h3 { font-size:11px !important; font-weight:700 !important;text-transform:uppercase; color:var(--text-muted); margin-bottom:10px; }
+  .history-table-container { overflow-x: auto; }
+  .history-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .history-table th { color: var(--text-muted); padding: 8px; font-weight: 600; border-bottom: 1px solid var(--border-color); font-size: 11px; text-transform: uppercase; text-align: left; }
+  .history-table td { padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); color:#fff; }
+
+  .admin-actions-wrap { display: flex; gap: 6px; padding-right: 16px; align-items: center; }
+  .btn-admin-action { background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); color: var(--text-muted); padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+  .btn-admin-action:hover { color: #fff; border-color: #a1a1aa; }
+  .btn-admin-add { background: rgba(59,130,246,0.05); color: var(--accent-blue); border: 1px dashed rgba(59,130,246,0.3); padding: 10px; width: calc(100% - 32px); margin: 8px 16px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; text-align: center; display: block; }
+  .btn-admin-add:hover { background: rgba(59,130,246,0.1); color: #fff; }
+  .phase-lock-banner { background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.15); border-left: 4px solid var(--accent-amber); border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 10px 16px 2px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+  .btn-unlock-phase { background: var(--accent-blue); color: #fff; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .btn-admin-master-add { background: rgba(34,197,94,0.1); color: var(--accent-green); border: 1px solid rgba(34,197,94,0.3); padding: 12px; width: calc(100% - 32px); margin: 14px 16px 4px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; text-align: center; }
+
+  .btn-category-voice { background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); color: var(--accent-amber); font-size: 10.5px; font-weight: 700; padding: 4px 8px; border-radius: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+  .btn-category-voice.playing { background: var(--accent-amber); color: #000; animation: pulseVoice 1.5s infinite; }
+
+  .restock-wrap { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .section-card { border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; background: rgba(255,255,255,0.025); }
+  .section-card-title { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom: 10px; }
+  .section-card-title h4 { font-size: 11px !important; font-weight: 700 !important; text-transform: uppercase; letter-spacing: 0.5px; margin: 0; }
+  .section-card-title .section-pill { font-size: 10px; padding: 4px 8px; border-radius: 999px; background: rgba(59,130,246,0.14); color: var(--accent-blue); font-weight: 700; }
+  .incidence-card h4 { color: var(--accent-amber); }
+  .restock-card h4 { color: var(--accent-green); }
+  .restock-form { display: grid; gap: 8px; margin-bottom: 10px; }
+  .restock-form-grid { display:grid; grid-template-columns: 2fr 1fr 1fr auto; gap:8px; align-items:end; }
+  .restock-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-main); }
+  .restock-form input, .restock-form select, .restock-form textarea { width: 100%; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; font-size: 13px; background: var(--bg-input); color: #fff; outline: none; }
+  .restock-form textarea { min-height: 62px; resize: vertical; }
+  .restock-form .btn-add-note { padding: 10px 14px; min-height: 44px; }
+  .restock-log-container { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .restock-entry { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 10px 12px; }
+  .restock-meta { display: flex; justify-content: space-between; gap: 6px; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+  .restock-line { font-size: 13px; color: var(--text-main); line-height: 1.4; }
+  .restock-actions { display: flex; gap: 6px; margin-top: 6px; }
+  .restock-actions button { border: none; background: transparent; color: var(--accent-blue); cursor: pointer; font-size: 11px; padding: 0; }
+  .restock-actions button:last-child { color: var(--accent-red); }
+
+  .day-close-wrap { padding: 0 16px 12px; }
+  .day-close-btn { width: 100%; background: rgba(245, 158, 11, 0.12); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.25); padding: 12px 14px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .day-close-btn.is-closed { background: rgba(34, 197, 94, 0.12); color: var(--accent-green); border-color: rgba(34, 197, 94, 0.25); cursor: default; }
+  .day-close-btn:disabled { opacity: 0.8; }
+  .day-close-status { font-size: 12px; color: var(--text-muted); margin-top: 6px; text-align: center; }
+
+  .notes-wrap{background:var(--bg-card);margin-top:10px;padding:16px;border-top:1px solid var(--border-color);border-bottom:1px solid var(--border-color); margin-bottom: 0 !important;}
+  .notes-wrap h3{font-size:11px !important;font-weight:700 !important;text-transform:uppercase;color:var(--text-muted);margin: 0 0 12px;}
+  #notes-phase-title { color: var(--accent-amber); font-weight: 700; }
+
+  .notes-log-container { max-height: 240px; overflow-y: auto; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .note-entry { background: var(--bg-card); border: 1px solid rgba(255,255,255,0.04); padding: 10px 14px; border-radius: 8px; }
+  .note-meta { font-size: 11px; font-weight: 700; margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .note-user { color: var(--accent-blue); }
+  .note-time { color: var(--text-muted); font-weight: 500; }
+  .note-text { font-size: 13px; color: var(--text-main); white-space: pre-wrap; line-height: 1.45; }
+  .notes-input-row { display: flex; gap: 10px; }
+  .notes-input-row textarea { flex: 1; min-height: 52px !important; height: 52px; border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; font-size: 13px; background: var(--bg-input); color: #fff; resize: none; outline: none; }
+  .btn-add-note { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 0 18px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; }
+
+  .footer-space-saver { height: 95px; width: 100%; background: transparent; display: block; }
+
+  .footer{position:fixed;bottom:0;left:0;right:0;background:var(--bg-card);border-top:1px solid var(--border-color);padding:12px 16px;display:flex;gap:10px;align-items:center;z-index:100}
+  .btn{flex:1;padding:12px 10px;border-radius:8px;border:1px solid var(--border-color);font-size:14px;font-weight:600;cursor:pointer;background:var(--bg-input);color:var(--text-main);text-align:center;}
+  .btn-primary{background:var(--accent-blue);color:#fff;border-color:var(--accent-blue);width:100%}
+
+  @media print{
+    body{background:#fff;color:#1a1a1a}
+    .top-bar,.wizard-container,.footer,.search-container,.time-widget,.history-wrap,.flow-navigation-wrap,.notes-input-row,.btn-admin-add,.btn-admin-master-add,.admin-actions-wrap,.phase-lock-banner,.btn-category-voice,.footer-space-saver,.time-master-control-panel,.kpi-dashboard-widget,.started-by-badge{display:none!important}
+    .meta{background:#f5f5f5;border-bottom:1px solid #ccc}
+    .content{padding-bottom:0}
+    .section{background:#fff; border-color:#ccc}
+    .section-collapsible-body { display: block !important; }
+    .check-item{border-top:1px solid #f5f5f5; background: none !important;}
+    .check-text{color:#1a1a1a; text-decoration: none !important;}
+    .notes-log-container { max-height: none !important; overflow: visible !important; background: none !important; border: none !important; padding: 0 !important; }
+    .note-entry { background: #f9f9f9 !important; border: 1px solid #ddd !important; }
+    .note-user, .note-time, .note-text { color: #000 !important; }
+  }
+  </style>
+</head>
+<body>
+  <div class="lupari-app-wrapper" id="lupari-root-node">
+    <div class="top-bar">
+      <div class="title-section">
+        <h1>Lupari Ops</h1>
+        <p>Checklists</p>
+      </div>
+      <div class="user-badge">
+        <input type="text" id="user-display-name" placeholder="Operador de Barra" onchange="manualNameChange(this.value)">
+        <span id="user-display-role" class="user-role role-colab">Operador</span>
+      </div>
+    </div>
+
+    <div class="rules-container">
+      <div class="rules-wrap">
+        <h3>Reglas Críticas de Operación</h3>
+        <div class="rule"><span class="rule-n">1</span><span>Nunca meter vidrio dentro de la hielera con hielo.</span></div>
+        <div class="rule"><span class="rule-n">2</span><span>Leches vegetales abiertas: revisar estado del envase y conservar en frío. Si huele diferente, no se usan.</span></div>
+        <div class="rule"><span class="rule-n">3</span><span>Foam de queso: anotar hora y fecha al preparar. Si tiene más de 24 hrs, no se usa.</span></div>
+        <div class="rule"><span class="rule-n">4</span><span>Uber Eats: activar al abrir y cerrar al terminar. Desactivar productos sin stock en tiempo real.</span></div>
+        <div class="rule"><span class="rule-n">5</span><span>Corte de caja: obligatorio antes de irse, sin excepción.</span></div>
+        <div class="rule"><span class="rule-n">6</span><span>Perecederos del día siguiente: empacar la noche anterior, no en la mañana.</span></div>
+      </div>
+    </div>
+
+    <div class="kpi-dashboard-widget">
+      <div class="kpi-metric-box">
+        <span class="kpi-lbl">Avance de Fase</span>
+        <span class="kpi-pct-value" id="kpi-pct-display">0%</span>
+        <span class="kpi-counter-value" id="kpi-counter-display">0 / 0 Tareas</span>
+      </div>
+      <div class="kpi-progress-bar-container">
+        <div class="kpi-progress-fill" id="kpi-bar-fill"></div>
+      </div>
+    </div>
+
+    <div class="wizard-container">
+      <div class="wizard-step" id="wiz-prep_moto" onclick="switchTab('prep_moto')">
+        <span class="wizard-step-num">Fase 1</span>
+        <span class="wizard-step-name">Prep. Moto</span>
+        <span class="wizard-step-status" id="status-prep_moto">Pendiente ⏳</span>
+      </div>
+      <div class="wizard-step" id="wiz-apertura" onclick="switchTab('apertura')">
+        <span class="wizard-step-num">Fase 2</span>
+        <span class="wizard-step-name">Apertura</span>
+        <span class="wizard-step-status" id="status-apertura">Bloqueado 🔒</span>
+      </div>
+      <div class="wizard-step" id="wiz-cierre" onclick="switchTab('cierre')">
+        <span class="wizard-step-num">Fase 3</span>
+        <span class="wizard-step-name">Cierre</span>
+        <span class="wizard-step-status" id="status-cierre">Bloqueado 🔒</span>
+      </div>
+    </div>
+
+    <div class="time-master-control-panel">
+      <button class="btn-time-starter" id="btn-time-control" onclick="triggerPhaseStart()">
+        ▶️ Empezar Checklist de Fase
+      </button>
+      <div id="admin-time-override-zone"></div>
+    </div>
+
+    <div class="started-by-badge" id="started-by-badge"></div>
+
+    <div class="time-widget">
+      <div class="time-item">
+        <span class="time-lbl">Inicio Fase</span>
+        <span class="time-val" id="time-start">--:--</span>
+      </div>
+      <div class="time-item" style="text-align: center;">
+        <span class="time-lbl">Tiempo Transcurrido</span>
+        <span class="time-val active" id="time-duration">0 min</span>
+      </div>
+      <div class="time-item" style="text-align: right;">
+        <span class="time-lbl">Término Fase</span>
+        <span class="time-val" id="time-end">--:--</span>
+      </div>
+    </div>
+
+    <div class="meta">
+      <label>
+        <span class="lbl">Fecha Operativa</span>
+        <input type="date" id="fecha">
+      </label>
+      <label>
+        <span class="lbl">Punto de Venta</span>
+        <select id="punto">
+          <option value="arboleda">Arboleda</option>
+          <option value="central">Central Sabor</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="search-container">
+      <div class="search-box-wrap">
+        <input type="text" id="search-input" placeholder="Buscar por tarea o categoría..." oninput="filterChecklist()">
+      </div>
+    </div>
+
+    <div id="admin-master-zone"></div>
+
+    <div class="content">
+      <div id="content"></div>
+      <div class="flow-navigation-wrap">
+         <button class="btn-flow" id="btn-next-phase" onclick="advanceWorkflow()">Fase completada ➔</button>
+      </div>
+      <div class="day-close-wrap" id="day-close-zone"></div>
+    </div>
+
+    <div class="history-wrap" id="admin-history-panel">
+      <h3>Métricas de Rendimiento (Historial Global de 2 Meses)</h3>
+      <div class="history-table-container">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Punto</th>
+              <th>Fase</th>
+              <th>Responsable Fin</th>
+              <th>Duración</th>
+              <th>Estatus</th>
+            </tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="notes-wrap">
+      <h3>Notas de Entrega / Incidencias — <span id="notes-phase-title">Prep. Moto</span></h3>
+
+      <div class="section-card incidence-card">
+        <div class="section-card-title">
+          <h4>Incidencias</h4>
+          <span class="section-pill">Reporta y edita</span>
+        </div>
+        <div class="notes-log-container" id="notes-log-container"></div>
+        <div class="notes-input-row">
+          <textarea id="notes-input" placeholder="Escribe un comentario o reporte de incidencia para esta fase..."></textarea>
+          <button class="btn-add-note" onclick="addPhaseNote()">Agregar</button>
+        </div>
+      </div>
+
+      <div class="restock-wrap">
+        <div class="section-card restock-card">
+          <div class="section-card-title">
+            <h4>Reabastecer inventario</h4>
+            <span class="section-pill">Registro rápido</span>
+          </div>
+          <div class="restock-form">
+            <div class="restock-form-grid">
+              <label>
+                <span>Insumo</span>
+                <select id="restock-product-select" onchange="toggleCustomRestockProductInput()"></select>
+              </label>
+              <label>
+                <span>Unidad</span>
+                <select id="restock-unit-select">
+                  <option value="g">g</option>
+                  <option value="kg">kg</option>
+                  <option value="ml">ml</option>
+                  <option value="L">L</option>
+                  <option value="unidad">unidad</option>
+                </select>
+              </label>
+              <label>
+                <span>Cantidad</span>
+                <input type="number" id="restock-quantity" min="0" step="0.01" placeholder="0">
+              </label>
+              <button class="btn-add-note" onclick="addInventoryRestock()">Agregar</button>
+            </div>
+            <label id="restock-custom-product-wrap" style="display:none;">
+              <span>Nombre del insumo</span>
+              <input type="text" id="restock-custom-product" placeholder="Escribe el nombre del insumo">
+            </label>
+            <label>
+              <span>Comentarios (opcional)</span>
+              <input type="text" id="restock-comment" placeholder="Ej. Falta de stock por apertura">
+            </label>
+          </div>
+          <div class="restock-log-container" id="restock-log-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-space-saver"></div>
+
+    <div class="footer">
+      <button class="btn btn-primary" onclick="triggerMobilePrint()">Imprimir / To PDF</button>
+    </div>
+  </div>
+
+  <script>
+    window.manualNameChange = window.manualNameChange || function(newName) {
+      var cleanName = (newName || '').trim() || 'Operador de Barra';
+      var input = document.getElementById('user-display-name');
+      if (input) input.value = cleanName;
+      try { localStorage.setItem('lupari_ops_username', cleanName); } catch (e) {}
+    };
+    window.switchTab = window.switchTab || function() {};
+    window.triggerPhaseStart = window.triggerPhaseStart || function() {};
+    window.advanceWorkflow = window.advanceWorkflow || function() {};
+    window.addPhaseNote = window.addPhaseNote || function() {};
+    window.editPhaseNote = window.editPhaseNote || function() {};
+    window.deletePhaseNote = window.deletePhaseNote || function() {};
+    window.addInventoryRestock = window.addInventoryRestock || function() {};
+    window.editInventoryRestockEntry = window.editInventoryRestockEntry || function() {};
+    window.deleteInventoryRestockEntry = window.deleteInventoryRestockEntry || function() {};
+    window.filterChecklist = window.filterChecklist || function() {};
+    window.toggleCustomRestockProductInput = window.toggleCustomRestockProductInput || function() {
+      var selectEl = document.getElementById('restock-product-select');
+      var wrapEl = document.getElementById('restock-custom-product-wrap');
+      var inputEl = document.getElementById('restock-custom-product');
+      if (!selectEl || !wrapEl || !inputEl) return;
+      var showCustom = (selectEl.value || '').trim() === '__custom__';
+      wrapEl.style.display = showCustom ? 'flex' : 'none';
+      if (!showCustom) inputEl.value = '';
+    };
+  </script>
+  <script src="https://m-maundrell.github.io/lupari-core/lupari-ops.js"></script>
+</body>
+</html>
