@@ -1778,7 +1778,7 @@ function resetStateObj() {
   if (db) db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha + '/structure').set(state.structure);
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+function initializeApp() {
   cleanOdooWrapperLayout(); detectOdooUser();
   var fechaEl = document.getElementById('fecha'); var puntoEl = document.getElementById('punto');
   if (fechaEl && !state.fecha) state.fecha = getTodayISO();
@@ -1790,7 +1790,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
   if (fechaEl) fechaEl.addEventListener('change', function() { syncFromCloud(); });
   if (puntoEl) puntoEl.addEventListener('change', function() { syncFromCloud(); });
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+  initializeApp();
+}
 
 setInterval(cleanOdooWrapperLayout, 2000);
 setInterval(function() { if (state.phases && state.phases[currentTab] && state.phases[currentTab].startTime && !state.phases[currentTab].endTime) { updateTimeUI(); } }, 15000);
