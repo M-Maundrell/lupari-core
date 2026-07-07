@@ -738,38 +738,40 @@ function buildDayClosureReport(closeTimestamp) {
   }).sort(function(a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
 
   var restockLines = restockEntries.length ? restockEntries.map(function(entry) {
-    return '<li>' + escapeHtml(entry.product || 'Sin producto') + ': ' + escapeHtml(entry.quantity || 0) + ' ' + escapeHtml(entry.unit || 'unidad') + (entry.comment ? ' | ' + escapeHtml(entry.comment) : '') + '</li>';
-  }) : ['<li>Sin reabastecimientos reportados.</li>'];
+    return '• ' + (entry.product || 'Sin producto') + ': ' + (entry.quantity || 0) + ' ' + (entry.unit || 'unidad') + (entry.comment ? ' | ' + entry.comment : '');
+  }) : ['• Sin reabastecimientos reportados.'];
 
-  var incidenceHtml = '';
+  var incidenceSections = [];
   ['prep_moto', 'apertura', 'cierre'].forEach(function(phaseKey) {
     var phaseData = state.phases && state.phases[phaseKey] ? state.phases[phaseKey] : {};
     var notes = phaseData.notas || phaseData.notes || {};
     var noteLines = Object.keys(notes).map(function(key) {
       var note = notes[key] || {};
-      return '<li>' + escapeHtml((note.text || '').trim()) + '</li>';
-    }).filter(function(line) { return !!line && line !== '<li></li>'; });
+      return '• ' + (note.text || '').trim();
+    }).filter(function(line) { return line !== '• '; });
 
-    incidenceHtml += '<p><strong>' + phaseNames[phaseKey] + ':</strong></p>';
+    incidenceSections.push(phaseNames[phaseKey] + ':');
     if (noteLines.length) {
-      incidenceHtml += '<ul>' + noteLines.join('') + '</ul>';
+      incidenceSections = incidenceSections.concat(noteLines);
     } else {
-      incidenceHtml += '<ul><li>Sin incidencias.</li></ul>';
+      incidenceSections.push('• Sin incidencias.');
     }
   });
 
   var closeTime = new Date(closeTimestamp).toLocaleString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
-  
+  var sucursalMap = { arboleda: 'Arboleda', central: 'Central Sabor' };
+  var sucursalName = sucursalMap[state.punto] || state.punto;
+
   var body = [
-    '<p><strong>@everyone</strong></p>',
-    '<p><strong>Reporte de Reabastecimiento:</strong></p>',
-    '<ul>' + restockLines.join('') + '</ul>',
-    '<br/>',
-    '<p><strong>Reporte de Incidencias:</strong></p>',
-    incidenceHtml,
-    '<br/>',
-    '<p><strong>Hora de Cierre:</strong> ' + closeTime + '</p>'
-  ].join('');
+    '@everyone',
+    'Reporte de Reabastecimiento (' + sucursalName + ' - ' + (state.fecha || getTodayISO()) + '):',
+    restockLines.join('\n'),
+    '',
+    'Reporte de Incidencias:',
+    incidenceSections.join('\n'),
+    '',
+    'Hora de Cierre: ' + closeTime
+  ].join('\n');
 
   var htmlFileContent = buildDayClosureHTMLFile(closeTimestamp);
 
@@ -828,7 +830,7 @@ async function sendDayClosureReportToOdoo(report) {
       }
 
       if (base64Data) {
-        // 2. Crear el archivo adjunto en Odoo
+        // 2. Crear el archivo adjunto en Odoo (sin vincular a discuss.channel inicialmente para evitar AccessError)
         var attachResponse = await fetch('/web/dataset/call_kw/ir.attachment/create', {
           method: 'POST',
           headers: headers,
@@ -843,8 +845,8 @@ async function sendDayClosureReportToOdoo(report) {
                 name: filename,
                 type: 'binary',
                 datas: base64Data,
-                res_model: 'discuss.channel',
-                res_id: channelId
+                res_model: false,
+                res_id: 0
               }],
               kwargs: {}
             }
