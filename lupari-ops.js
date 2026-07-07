@@ -821,9 +821,8 @@ async function pushReportToGitHub(base64Data, filename) {
 }
 
 async function sendDayClosureReportToOdoo(report) {
-  if (window.location.protocol === 'file:') return;
-
-  var channelId = window.LUPARI_ODDO_CHANNEL_ID || window.LUPARI_ODOO_CHANNEL_ID || null;
+  var isLocal = (window.location.protocol === 'file:');
+  var channelId = isLocal ? 999 : (window.LUPARI_ODDO_CHANNEL_ID || window.LUPARI_ODOO_CHANNEL_ID || null);
   var headers = { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
 
   var sucursalMap = { arboleda: 'Arboleda', central: 'Central Sabor' };
@@ -859,6 +858,16 @@ async function sendDayClosureReportToOdoo(report) {
         filename += '.pdf';
         console.log('PDF generado exitosamente. Tamaño base64:', base64Data ? base64Data.length : 0);
 
+        if (isLocal) {
+          console.log('[LUPARI DEBUGER] Ejecución local. Guardando PDF para depuración.');
+          try {
+            await pdfWorker.save();
+          } catch (saveErr) {
+            console.error('Falla al guardar localmente en test:', saveErr);
+          }
+          return;
+        }
+
         // Subir a GitHub para validación (solo administradores y de forma interactiva segura)
         if (userSession.isAdmin && confirm('🛠️ [DEBUG] ¿Deseas subir el PDF generado a tu repositorio de GitHub para validar su contenido?')) {
           await pushReportToGitHub(base64Data, filename);
@@ -868,6 +877,10 @@ async function sendDayClosureReportToOdoo(report) {
         console.warn('html2pdf.js no está disponible. Usando fallback de HTML.');
         base64Data = btoa(unescape(encodeURIComponent(report.htmlFileContent)));
         filename += '.html';
+        if (isLocal) {
+          console.log('[LUPARI DEBUGER] Fallback local. Contenido base64:', base64Data);
+          return;
+        }
       }
 
       if (base64Data) {
