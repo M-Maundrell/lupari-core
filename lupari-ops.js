@@ -582,8 +582,14 @@ function renderDayClosureControl() {
   var buttonLabel = isClosed ? '✅ Día cerrado' : '🛑 Terminar día';
   var disabledAttr = isClosed ? 'disabled' : '';
 
-  zone.innerHTML = '<button id="btn-day-close" class="day-close-btn' + (isClosed ? ' is-closed' : '') + '" ' + disabledAttr + ' onclick="finishDayAndNotifyOdoo()">' + buttonLabel + '</button>' +
+  var html = '<button id="btn-day-close" class="day-close-btn' + (isClosed ? ' is-closed' : '') + '" ' + disabledAttr + ' onclick="finishDayAndNotifyOdoo()">' + buttonLabel + '</button>' +
     '<div class="day-close-status">' + statusText + '</div>';
+
+  if (isClosed && userSession.isAdmin) {
+    html += '<button class="btn-admin-override" style="margin-top:10px; width:100%; color:var(--accent-amber); border-color:var(--accent-amber);" onclick="reopenDay()">🔓 Reabrir Día (Admin)</button>';
+  }
+
+  zone.innerHTML = html;
 }
 
 function buildDayClosureReport(closeTimestamp) {
@@ -793,6 +799,37 @@ async function finishDayAndNotifyOdoo() {
     console.warn('No fue posible cerrar el día.', err);
     alert('No fue posible cerrar el día en este momento.');
   }
+}
+
+function reopenDay() {
+  if (!userSession.isAdmin) return;
+  if (!confirm('🚨 ¿Deseas reabrir el día de hoy?\n\nEsto restablecerá el cierre para que puedas editar y volver a mandar el reporte.')) return;
+
+  var updates = {
+    dayClosed: false,
+    dayClosedBy: null,
+    dayClosedAt: null,
+    dayClosedReportSentAt: null,
+    dayClosureReport: null,
+    'phases/cierre/endTime': null
+  };
+
+  db.ref('lupari_ops_v3/' + state.punto + '/' + state.fecha).update(updates).then(function() {
+    state.dayClosed = false;
+    state.dayClosedBy = null;
+    state.dayClosedAt = null;
+    state.dayClosedReportSentAt = null;
+    state.dayClosureReport = null;
+    if (state.phases && state.phases.cierre) {
+      state.phases.cierre.endTime = null;
+    }
+    renderDayClosureControl();
+    applyOperationalEditLock();
+    alert('🔓 El día ha sido reabierto.');
+  }).catch(function(err) {
+    console.error('Error al reabrir el día:', err);
+    alert('No fue posible reabrir el día.');
+  });
 }
 
 function isAdminSession(rootInfo) {
@@ -1466,6 +1503,7 @@ window.renderRestockLog = renderRestockLog;
 window.loadOdooInventoryProducts = loadOdooInventoryProducts;
 window.toggleCustomRestockProductInput = toggleCustomRestockProductInput;
 window.finishDayAndNotifyOdoo = finishDayAndNotifyOdoo;
+window.reopenDay = reopenDay;
 
 function resetStateObj() {
   state.fecha = document.getElementById('fecha') ? document.getElementById('fecha').value : getTodayISO();
