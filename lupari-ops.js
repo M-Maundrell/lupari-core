@@ -794,48 +794,79 @@ async function sendDayClosureReportToOdoo(report) {
   var mentionText = '@everyone Adjunto está el reporte de cierre del día ' + report.date + ' de Lupari-' + sucursalName;
 
   var attachmentId = null;
+  var filename = 'Reporte_Cierre_' + report.date + '_' + sucursalName;
 
   if (channelId && report.htmlFileContent) {
     try {
-      // 1. Crear el archivo adjunto en Odoo
-      var base64Data = btoa(unescape(encodeURIComponent(report.htmlFileContent)));
-      var attachResponse = await fetch('/web/dataset/call_kw/ir.attachment/create', {
-        method: 'POST',
-        headers: headers,
-        credentials: 'same-origin',
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'call',
-          params: {
-            model: 'ir.attachment',
-            method: 'create',
-            args: [{
-              name: 'Reporte_Cierre_' + report.date + '_' + sucursalName + '.html',
-              type: 'binary',
-              datas: base64Data,
-              res_model: 'discuss.channel',
-              res_id: channelId
-            }],
-            kwargs: {}
-          }
-        })
-      });
+      var base64Data = null;
 
-      if (attachResponse.ok) {
-        var attachJson = await attachResponse.json();
-        if (attachJson && attachJson.result) {
-          attachmentId = attachJson.result;
-          console.log('Adjunto creado en Odoo exitosamente. ID:', attachmentId);
-        } else {
-          console.warn('Error al crear adjunto en Odoo:', attachJson.error);
+      if (window.html2pdf) {
+        // 1. Generar el PDF usando html2pdf.js de manera asíncrona
+        console.log('Generando reporte PDF...');
+        var element = document.createElement('div');
+        element.innerHTML = report.htmlFileContent;
+        // Ajustes para centrar y estructurar adecuadamente el PDF en tamaño A4
+        element.style.width = '170mm';
+        element.style.padding = '10px';
+        element.style.background = '#ffffff';
+
+        base64Data = await html2pdf().from(element).set({
+          margin: 10,
+          filename: filename + '.pdf',
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, logging: false, useCORS: true },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        }).output('base64');
+
+        filename += '.pdf';
+        console.log('PDF generado exitosamente.');
+      } else {
+        // Fallback a HTML si html2pdf no está cargado
+        console.warn('html2pdf.js no está disponible. Usando fallback de HTML.');
+        base64Data = btoa(unescape(encodeURIComponent(report.htmlFileContent)));
+        filename += '.html';
+      }
+
+      if (base64Data) {
+        // 2. Crear el archivo adjunto en Odoo
+        var attachResponse = await fetch('/web/dataset/call_kw/ir.attachment/create', {
+          method: 'POST',
+          headers: headers,
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'call',
+            params: {
+              model: 'ir.attachment',
+              method: 'create',
+              args: [{
+                name: filename,
+                type: 'binary',
+                datas: base64Data,
+                res_model: 'discuss.channel',
+                res_id: channelId
+              }],
+              kwargs: {}
+            }
+          })
+        });
+
+        if (attachResponse.ok) {
+          var attachJson = await attachResponse.json();
+          if (attachJson && attachJson.result) {
+            attachmentId = attachJson.result;
+            console.log('Adjunto creado en Odoo exitosamente. ID:', attachmentId);
+          } else {
+            console.warn('Error al crear adjunto en Odoo:', attachJson.error);
+          }
         }
       }
     } catch (err) {
-      console.warn('Falla de red al crear adjunto en Odoo:', err);
+      console.warn('Falla al crear adjunto en Odoo:', err);
     }
   }
 
-  // Si pudimos crear el archivo adjunto, el cuerpo del mensaje será de texto plano con la mención.
+  // Si pudimos crear el archivo adjunto (PDF o HTML), el cuerpo del mensaje será de texto plano con la mención.
   // Si no, usamos el fallback con el HTML directo en el cuerpo.
   var finalBody = attachmentId ? mentionText : report.body;
   var attachmentIds = attachmentId ? [attachmentId] : [];
@@ -926,10 +957,11 @@ async function sendDayClosureReportToOdoo(report) {
         model: 'mail.message',
         method: 'create',
         args: [{
-          body: report.body,
+          body: finalBody,
           subject: report.subject,
           message_type: 'comment',
-          subtype_id: false
+          subtype_id: false,
+          attachment_ids: attachmentIds
         }],
         kwargs: {}
       }
