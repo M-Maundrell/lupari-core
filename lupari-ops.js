@@ -592,6 +592,144 @@ function renderDayClosureControl() {
   zone.innerHTML = html;
 }
 
+function buildDayClosureHTMLFile(closeTimestamp) {
+  var phaseNames = { prep_moto: 'Fase 1: Prep. Moto', apertura: 'Fase 2: Apertura', cierre: 'Fase 3: Cierre' };
+  var restocks = state.inventoryRestocks || {};
+  var restockEntries = Object.keys(restocks).map(function(key) {
+    return Object.assign({ _key: key }, restocks[key]);
+  }).sort(function(a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
+
+  var restockLines = restockEntries.length ? restockEntries.map(function(entry) {
+    return '<li>' + escapeHtml(entry.product || 'Sin producto') + ': ' + escapeHtml(entry.quantity || 0) + ' ' + escapeHtml(entry.unit || 'unidad') + (entry.comment ? ' | ' + escapeHtml(entry.comment) : '') + '</li>';
+  }) : ['<li>Sin reabastecimientos reportados.</li>'];
+
+  var incidenceHtml = '';
+  ['prep_moto', 'apertura', 'cierre'].forEach(function(phaseKey) {
+    var phaseData = state.phases && state.phases[phaseKey] ? state.phases[phaseKey] : {};
+    var notes = phaseData.notas || phaseData.notes || {};
+    var noteLines = Object.keys(notes).map(function(key) {
+      var note = notes[key] || {};
+      return '<li>' + escapeHtml((note.text || '').trim()) + '</li>';
+    }).filter(function(line) { return !!line && line !== '<li></li>'; });
+
+    incidenceHtml += '<div class="phase-title">' + phaseNames[phaseKey] + '</div>';
+    if (noteLines.length) {
+      incidenceHtml += '<ul>' + noteLines.join('') + '</ul>';
+    } else {
+      incidenceHtml += '<ul><li>Sin incidencias.</li></ul>';
+    }
+  });
+
+  var closeTime = new Date(closeTimestamp).toLocaleString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
+  var sucursalMap = { arboleda: 'Arboleda', central: 'Central Sabor' };
+  var sucursalName = sucursalMap[state.punto] || state.punto;
+
+  var html = [
+    '<!DOCTYPE html>',
+    '<html lang="es">',
+    '<head>',
+    '  <meta charset="UTF-8">',
+    '  <title>Reporte de Cierre - Lupari</title>',
+    '  <style>',
+    '    body {',
+    '      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;',
+    '      background-color: #f4f4f7;',
+    '      color: #333333;',
+    '      margin: 0;',
+    '      padding: 24px;',
+    '    }',
+    '    .report-card {',
+    '      max-width: 600px;',
+    '      margin: 0 auto;',
+    '      background: #ffffff;',
+    '      border-radius: 12px;',
+    '      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);',
+    '      border: 1px solid #e4e4e7;',
+    '      overflow: hidden;',
+    '    }',
+    '    .header {',
+    '      background: #09090b;',
+    '      color: #ffffff;',
+    '      padding: 24px;',
+    '      text-align: center;',
+    '    }',
+    '    .header h1 {',
+    '      margin: 0;',
+    '      font-size: 20px;',
+    '      font-weight: 700;',
+    '      letter-spacing: -0.5px;',
+    '    }',
+    '    .header p {',
+    '      margin: 4px 0 0;',
+    '      font-size: 13px;',
+    '      color: #a1a1aa;',
+    '    }',
+    '    .content {',
+    '      padding: 24px;',
+    '    }',
+    '    .section-title {',
+    '      font-size: 14px;',
+    '      font-weight: 700;',
+    '      text-transform: uppercase;',
+    '      letter-spacing: 0.5px;',
+    '      color: #09090b;',
+    '      margin-top: 24px;',
+    '      margin-bottom: 12px;',
+    '      border-bottom: 2px solid #e4e4e7;',
+    '      padding-bottom: 6px;',
+    '    }',
+    '    .section-title:first-child {',
+    '      margin-top: 0;',
+    '    }',
+    '    ul {',
+    '      margin: 0 0 16px 0;',
+    '      padding-left: 20px;',
+    '      line-height: 1.5;',
+    '    }',
+    '    li {',
+    '      margin-bottom: 8px;',
+    '      font-size: 14px;',
+    '    }',
+    '    .phase-title {',
+    '      font-size: 13px;',
+    '      font-weight: 700;',
+    '      color: #3b82f6;',
+    '      margin: 12px 0 6px 0;',
+    '    }',
+    '    .footer {',
+    '      background: #f4f4f7;',
+    '      padding: 16px 24px;',
+    '      border-top: 1px solid #e4e4e7;',
+    '      text-align: center;',
+    '      font-size: 12px;',
+    '      color: #71717a;',
+    '    }',
+    '  </style>',
+    '</head>',
+    '<body>',
+    '  <div class="report-card">',
+    '    <div class="header">',
+    '      <h1>Reporte de Cierre de Día</h1>',
+    '      <p>Lupari - ' + sucursalName + ' | ' + state.fecha + '</p>',
+    '    </div>',
+    '    <div class="content">',
+    '      <div class="section-title">Reporte de Reabastecimiento</div>',
+    '      <ul>' + restockLines.join('') + '</ul>',
+    '      ',
+    '      <div class="section-title">Reporte de Incidencias</div>',
+    '      ' + incidenceHtml,
+    '    </div>',
+    '    <div class="footer">',
+    '      <strong>Hora de Cierre:</strong> ' + closeTime + ' · Lupari Ops',
+    '    </div>',
+    '  </div>',
+    '</body>',
+    '</html>'
+  ].join('\n');
+
+  return html;
+}
+
 function buildDayClosureReport(closeTimestamp) {
   var phaseNames = { prep_moto: 'Fase 1: Prep. Moto', apertura: 'Fase 2: Apertura', cierre: 'Fase 3: Cierre' };
   var restocks = state.inventoryRestocks || {};
@@ -633,9 +771,12 @@ function buildDayClosureReport(closeTimestamp) {
     '<p><strong>Hora de Cierre:</strong> ' + closeTime + '</p>'
   ].join('');
 
+  var htmlFileContent = buildDayClosureHTMLFile(closeTimestamp);
+
   return {
     subject: 'Reporte de cierre de día Lupari Ops',
     body: body,
+    htmlFileContent: htmlFileContent,
     point: state.punto || 'arboleda',
     date: state.fecha || getTodayISO(),
     timestamp: closeTimestamp
@@ -647,6 +788,57 @@ async function sendDayClosureReportToOdoo(report) {
 
   var channelId = window.LUPARI_ODDO_CHANNEL_ID || window.LUPARI_ODOO_CHANNEL_ID || null;
   var headers = { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+
+  var sucursalMap = { arboleda: 'Arboleda', central: 'Central Sabor' };
+  var sucursalName = sucursalMap[report.point] || report.point;
+  var mentionText = '@everyone Adjunto está el reporte de cierre del día ' + report.date + ' de Lupari-' + sucursalName;
+
+  var attachmentId = null;
+
+  if (channelId && report.htmlFileContent) {
+    try {
+      // 1. Crear el archivo adjunto en Odoo
+      var base64Data = btoa(unescape(encodeURIComponent(report.htmlFileContent)));
+      var attachResponse = await fetch('/web/dataset/call_kw/ir.attachment/create', {
+        method: 'POST',
+        headers: headers,
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'call',
+          params: {
+            model: 'ir.attachment',
+            method: 'create',
+            args: [{
+              name: 'Reporte_Cierre_' + report.date + '_' + sucursalName + '.html',
+              type: 'binary',
+              datas: base64Data,
+              res_model: 'discuss.channel',
+              res_id: channelId
+            }],
+            kwargs: {}
+          }
+        })
+      });
+
+      if (attachResponse.ok) {
+        var attachJson = await attachResponse.json();
+        if (attachJson && attachJson.result) {
+          attachmentId = attachJson.result;
+          console.log('Adjunto creado en Odoo exitosamente. ID:', attachmentId);
+        } else {
+          console.warn('Error al crear adjunto en Odoo:', attachJson.error);
+        }
+      }
+    } catch (err) {
+      console.warn('Falla de red al crear adjunto en Odoo:', err);
+    }
+  }
+
+  // Si pudimos crear el archivo adjunto, el cuerpo del mensaje será de texto plano con la mención.
+  // Si no, usamos el fallback con el HTML directo en el cuerpo.
+  var finalBody = attachmentId ? mentionText : report.body;
+  var attachmentIds = attachmentId ? [attachmentId] : [];
 
   if (channelId) {
     // 1. Intentar con discuss.channel (Odoo 16+)
@@ -663,10 +855,11 @@ async function sendDayClosureReportToOdoo(report) {
             method: 'message_post',
             args: [channelId],
             kwargs: {
-              body: report.body,
+              body: finalBody,
               subject: report.subject,
               message_type: 'comment',
-              subtype_id: false
+              subtype_id: false,
+              attachment_ids: attachmentIds
             }
           }
         })
@@ -698,10 +891,11 @@ async function sendDayClosureReportToOdoo(report) {
             method: 'message_post',
             args: [channelId],
             kwargs: {
-              body: report.body,
+              body: finalBody,
               subject: report.subject,
               message_type: 'comment',
-              subtype_id: false
+              subtype_id: false,
+              attachment_ids: attachmentIds
             }
           }
         })
