@@ -840,19 +840,9 @@ async function sendDayClosureReportToOdoo(report) {
       if (window.html2pdf) {
         // 1. Generar el PDF usando html2pdf.js de manera asíncrona
         console.log('Generando reporte PDF...');
-        var element = document.createElement('div');
-        element.innerHTML = report.htmlFileContent;
-        // Ajustes para centrar y estructurar adecuadamente el PDF en tamaño A4 (z-index -1000 para ocultar visualmente pero mantener en viewport para html2canvas)
-        element.style.position = 'fixed';
-        element.style.left = '0';
-        element.style.top = '0';
-        element.style.zIndex = '-1000';
-        element.style.width = '170mm';
-        element.style.padding = '10px';
-        element.style.background = '#ffffff';
-        document.body.appendChild(element);
+        console.log('HTML del reporte a renderizar (longitud):', report.htmlFileContent.length);
 
-        var pdfWorker = html2pdf().from(element).set({
+        var pdfWorker = html2pdf().from(report.htmlFileContent).set({
           margin: 10,
           filename: filename + '.pdf',
           image: { type: 'jpeg', quality: 0.98 },
@@ -865,8 +855,6 @@ async function sendDayClosureReportToOdoo(report) {
         if (pdfDataUri && pdfDataUri.indexOf('base64,') !== -1) {
           base64Data = pdfDataUri.split('base64,')[1];
         }
-
-        document.body.removeChild(element);
 
         filename += '.pdf';
         console.log('PDF generado exitosamente. Tamaño base64:', base64Data ? base64Data.length : 0);
