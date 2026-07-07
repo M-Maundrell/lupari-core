@@ -812,16 +812,20 @@ async function sendDayClosureReportToOdoo(report) {
         element.style.padding = '10px';
         element.style.background = '#ffffff';
 
-        base64Data = await html2pdf().from(element).set({
+        var pdfDataUri = await html2pdf().from(element).set({
           margin: 10,
           filename: filename + '.pdf',
           image: { type: 'jpeg', quality: 0.98 },
           html2canvas: { scale: 2, logging: false, useCORS: true },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        }).output('base64');
+        }).output('datauristring');
+
+        if (pdfDataUri && pdfDataUri.indexOf('base64,') !== -1) {
+          base64Data = pdfDataUri.split('base64,')[1];
+        }
 
         filename += '.pdf';
-        console.log('PDF generado exitosamente.');
+        console.log('PDF generado exitosamente. Tamaño base64:', base64Data ? base64Data.length : 0);
       } else {
         // Fallback a HTML si html2pdf no está cargado
         console.warn('html2pdf.js no está disponible. Usando fallback de HTML.');
