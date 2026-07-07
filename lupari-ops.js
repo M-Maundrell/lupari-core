@@ -625,19 +625,8 @@ function buildDayClosureHTMLFile(closeTimestamp) {
   var sucursalName = sucursalMap[state.punto] || state.punto;
 
   var html = [
-    '<!DOCTYPE html>',
-    '<html lang="es">',
-    '<head>',
-    '  <meta charset="UTF-8">',
-    '  <title>Reporte de Cierre - Lupari</title>',
+    '<div style="background-color: #f4f4f7; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif; color: #333333; width: 100%; box-sizing: border-box;">',
     '  <style>',
-    '    body {',
-    '      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;',
-    '      background-color: #f4f4f7;',
-    '      color: #333333;',
-    '      margin: 0;',
-    '      padding: 24px;',
-    '    }',
     '    .report-card {',
     '      max-width: 600px;',
     '      margin: 0 auto;',
@@ -705,8 +694,6 @@ function buildDayClosureHTMLFile(closeTimestamp) {
     '      color: #71717a;',
     '    }',
     '  </style>',
-    '</head>',
-    '<body>',
     '  <div class="report-card">',
     '    <div class="header">',
     '      <h1>Reporte de Cierre de Día</h1>',
@@ -723,8 +710,7 @@ function buildDayClosureHTMLFile(closeTimestamp) {
     '      <strong>Hora de Cierre:</strong> ' + closeTime + ' · Lupari Ops',
     '    </div>',
     '  </div>',
-    '</body>',
-    '</html>'
+    '</div>'
   ].join('\n');
 
   return html;
@@ -816,16 +802,25 @@ async function sendDayClosureReportToOdoo(report) {
         element.style.background = '#ffffff';
         document.body.appendChild(element);
 
-        var pdfDataUri = await html2pdf().from(element).set({
+        var pdfWorker = html2pdf().from(element).set({
           margin: 10,
           filename: filename + '.pdf',
           image: { type: 'jpeg', quality: 0.98 },
           html2canvas: { scale: 2, logging: false, useCORS: true },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        }).output('datauristring');
+        });
+
+        var pdfDataUri = await pdfWorker.output('datauristring');
 
         if (pdfDataUri && pdfDataUri.indexOf('base64,') !== -1) {
           base64Data = pdfDataUri.split('base64,')[1];
+        }
+
+        try {
+          pdfWorker.save();
+          console.log('Descarga local del PDF iniciada para validacion.');
+        } catch (pdfSaveErr) {
+          console.warn('Falla de guardado local PDF:', pdfSaveErr);
         }
 
         document.body.removeChild(element);
