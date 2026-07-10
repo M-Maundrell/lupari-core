@@ -267,15 +267,9 @@
   .notes-input-row textarea { flex: 1; min-height: 52px !important; height: 52px; border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; font-size: 13px; background: var(--bg-input); color: #fff; resize: none; outline: none; }
   .btn-add-note { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 0 18px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; }
 
-  .footer-space-saver { height: 95px; width: 100%; background: transparent; display: block; }
-
-  .footer{position:fixed;bottom:0;left:0;right:0;background:var(--bg-card);border-top:1px solid var(--border-color);padding:12px 16px;display:flex;gap:10px;align-items:center;z-index:100}
-  .btn{flex:1;padding:12px 10px;border-radius:8px;border:1px solid var(--border-color);font-size:14px;font-weight:600;cursor:pointer;background:var(--bg-input);color:var(--text-main);text-align:center;}
-  .btn-primary{background:var(--accent-blue);color:#fff;border-color:var(--accent-blue);width:100%}
-
   @media print{
     body{background:#fff;color:#1a1a1a}
-    .top-bar,.wizard-container,.footer,.search-container,.time-widget,.history-wrap,.flow-navigation-wrap,.notes-input-row,.btn-admin-add,.btn-admin-master-add,.admin-actions-wrap,.phase-lock-banner,.btn-category-voice,.footer-space-saver,.time-master-control-panel,.kpi-dashboard-widget,.started-by-badge{display:none!important}
+    .top-bar,.wizard-container,.search-container,.time-widget,.history-wrap,.flow-navigation-wrap,.notes-input-row,.btn-admin-add,.btn-admin-master-add,.admin-actions-wrap,.phase-lock-banner,.btn-category-voice,.time-master-control-panel,.kpi-dashboard-widget,.started-by-badge{display:none!important}
     .meta{background:#f5f5f5;border-bottom:1px solid #ccc}
     .content{padding-bottom:0}
     .section{background:#fff; border-color:#ccc}
@@ -473,11 +467,6 @@
 
     <div class="day-close-wrap" id="day-close-zone"></div>
 
-    <div class="footer-space-saver"></div>
-
-    <div class="footer">
-      <button class="btn btn-primary" onclick="triggerMobilePrint()">Imprimir / To PDF</button>
-    </div>
   </div>
 
   <script>
