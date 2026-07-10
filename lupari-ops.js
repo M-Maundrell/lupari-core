@@ -37,6 +37,7 @@ var db = window.firebase ? firebase.database() : null;
 
 var currentTab = 'prep_moto';
 var userSession = { name: 'Operador de Barra', isAdmin: false };
+var LUPARI_CORE_BASE_URL = 'https://m-maundrell.github.io/lupari-core';
 var fallbackRestockProducts = [
   { default_code: 'INS-001', name: 'Leche entera' },
   { default_code: 'INS-002', name: 'Leche deslactosada' },
@@ -55,6 +56,7 @@ var collapsedSections = {};
 var inventoryProductsLoadPromise = null;
 var inventoryProductsLoaded = false;
 var inventoryProductsLoadTimer = null;
+var inventoryCacheMeta = { count: null, lastWriteDate: null, source: 'fallback' };
 var state = {
   fecha: '',
   punto: 'arboleda',
@@ -1397,19 +1399,38 @@ function getCachedRestockProducts() {
   try {
     var raw = localStorage.getItem('lupari_ops_inventory_products');
     var parsed = raw ? JSON.parse(raw) : null;
+    if (parsed && parsed.meta && typeof parsed.meta === 'object') {
+      inventoryCacheMeta = {
+        count: parsed.meta.count || null,
+        lastWriteDate: parsed.meta.lastWriteDate || null,
+        source: parsed.meta.source || 'localStorage'
+      };
+    }
     if (parsed && Array.isArray(parsed.records)) return parsed.records;
   } catch (err) {}
   return [];
 }
 
-function cacheRestockProducts(records) {
+function cacheRestockProducts(records, meta) {
   if (!Array.isArray(records) || !records.length) return;
+  var cleanMeta = meta || {};
+  inventoryCacheMeta = {
+    count: cleanMeta.count || records.length,
+    lastWriteDate: cleanMeta.lastWriteDate || getLatestWriteDate(records),
+    source: cleanMeta.source || 'runtime'
+  };
   try {
     localStorage.setItem('lupari_ops_inventory_products', JSON.stringify({
       savedAt: Date.now(),
+      meta: inventoryCacheMeta,
       records: records.slice(0, 200)
     }));
   } catch (err) {}
+}
+
+function getInventoryCacheUrl() {
+  var baseUrl = (window.LUPARI_CORE_BASE_URL || LUPARI_CORE_BASE_URL).replace(/\/$/, '');
+  return baseUrl + '/inventory-cache.json';
 }
 
 function createFetchTimeout(ms) {
@@ -1422,6 +1443,127 @@ function createFetchTimeout(ms) {
   };
 }
 
+function getLatestWriteDate(records) {
+  if (!Array.isArray(records)) return null;
+  var latest = null;
+  records.forEach(function(record) {
+    if (record && record.write_date && (!latest || record.write_date > latest)) {
+      latest = record.write_date;
+    }
+  });
+  return latest;
+}
+
+function normalizeInventoryRecords(records) {
+  if (!Array.isArray(records)) return [];
+  return records.map(function(record) {
+    return {
+      id: record.id || null,
+      name: record.name || '',
+      default_code: record.default_code || '',
+      write_date: record.write_date || null
+    };
+  }).filter(function(record) {
+    return record.name || record.default_code;
+  });
+}
+
+async function fetchOdooRpc(model, method, args, kwargs, timeoutMs) {
+  var timeout = createFetchTimeout(timeoutMs || 2500);
+  try {
+    var response = await fetch('/web/dataset/call_kw/' + model + '/' + method, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin',
+      signal: timeout.signal,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          model: model,
+          method: method,
+          args: args || [],
+          kwargs: kwargs || {}
+        }
+      })
+    });
+    if (!response.ok) throw new Error('Odoo no disponible');
+    var jsonResponse = await response.json();
+    if (jsonResponse && jsonResponse.error) throw new Error(jsonResponse.error.message || 'Error Odoo');
+    return jsonResponse ? jsonResponse.result : null;
+  } finally {
+    timeout.cancel();
+  }
+}
+
+async function loadGitHubInventoryCache() {
+  var timeout = createFetchTimeout(2500);
+  try {
+    var response = await fetch(getInventoryCacheUrl(), {
+      method: 'GET',
+      cache: 'default',
+      signal: timeout.signal
+    });
+    if (!response.ok) throw new Error('Cache GitHub no disponible');
+    var payload = await response.json();
+    var records = normalizeInventoryRecords(payload.records || []);
+    if (!records.length) return [];
+
+    cacheRestockProducts(records, {
+      count: (payload.meta && payload.meta.count) || records.length,
+      lastWriteDate: (payload.meta && payload.meta.lastWriteDate) || getLatestWriteDate(records),
+      source: 'github-pages'
+    });
+    populateRestockProductOptions(records);
+    return records;
+  } catch (err) {
+    console.warn('Cache de inventario GitHub no disponible. Usando cache local.', err);
+    return [];
+  } finally {
+    timeout.cancel();
+  }
+}
+
+async function getOdooInventorySignature() {
+  var domain = [['default_code', 'ilike', 'INS-']];
+  var countPromise = fetchOdooRpc('product.product', 'search_count', [domain], {}, 2500);
+  var latestPromise = fetchOdooRpc('product.product', 'search_read', [], {
+    domain: domain,
+    fields: ['write_date'],
+    limit: 1,
+    order: 'write_date desc'
+  }, 2500);
+  var count = await countPromise;
+  var latestRecords = await latestPromise;
+  var latest = Array.isArray(latestRecords) && latestRecords[0] ? latestRecords[0].write_date : null;
+  return { count: count || 0, lastWriteDate: latest || null };
+}
+
+function inventorySignatureMatches(remoteSignature) {
+  if (!remoteSignature) return true;
+  if (inventoryCacheMeta.count !== null && Number(inventoryCacheMeta.count) !== Number(remoteSignature.count)) return false;
+  if ((inventoryCacheMeta.lastWriteDate || null) !== (remoteSignature.lastWriteDate || null)) return false;
+  return true;
+}
+
+async function refreshInventoryFromOdoo(remoteSignature) {
+  var records = await fetchOdooRpc('product.product', 'search_read', [], {
+    domain: [['default_code', 'ilike', 'INS-']],
+    fields: ['id', 'name', 'default_code', 'write_date'],
+    limit: 200,
+    order: 'default_code asc'
+  }, 3500);
+  records = normalizeInventoryRecords(records || []);
+  if (records.length) {
+    cacheRestockProducts(records, {
+      count: remoteSignature ? remoteSignature.count : records.length,
+      lastWriteDate: remoteSignature ? remoteSignature.lastWriteDate : getLatestWriteDate(records),
+      source: 'odoo'
+    });
+    populateRestockProductOptions(records);
+  }
+}
+
 async function loadOdooInventoryProducts() {
   var selectEl = document.getElementById('restock-product-select');
   if (!selectEl) return;
@@ -1432,42 +1574,17 @@ async function loadOdooInventoryProducts() {
   populateRestockProductOptions(cachedProducts);
 
   inventoryProductsLoadPromise = (async function() {
-    var timeout = createFetchTimeout(3500);
     try {
-      var response = await fetch('/web/dataset/call_kw/product.product/search_read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        credentials: 'same-origin',
-        signal: timeout.signal,
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'call',
-          params: {
-            model: 'product.product',
-            method: 'search_read',
-            args: [],
-            kwargs: {
-              domain: [['default_code', 'ilike', 'INS-']],
-              fields: ['id', 'name', 'default_code'],
-              limit: 200
-            }
-          }
-        })
-      });
-
-      if (!response.ok) throw new Error('No disponible');
-      var jsonResponse = await response.json();
-      var records = Array.isArray(jsonResponse && jsonResponse.result) ? jsonResponse.result : ((jsonResponse && jsonResponse.result && Array.isArray(jsonResponse.result.records)) ? jsonResponse.result.records : []);
-      if (records.length) {
-        cacheRestockProducts(records);
-        populateRestockProductOptions(records);
+      await loadGitHubInventoryCache();
+      var signature = await getOdooInventorySignature();
+      if (!inventorySignatureMatches(signature)) {
+        await refreshInventoryFromOdoo(signature);
       }
       inventoryProductsLoaded = true;
     } catch (err) {
       console.warn('Inventario Odoo no disponible o demasiado lento. Usando insumos locales.', err);
       populateRestockProductOptions(cachedProducts);
     } finally {
-      timeout.cancel();
       inventoryProductsLoadPromise = null;
     }
   })();

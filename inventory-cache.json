@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "generatedAt": "2026-07-10T00:00:00.000Z",
+  "meta": {
+    "count": 7,
+    "lastWriteDate": null,
+    "source": "seed"
+  },
+  "records": [
+    {
+      "id": null,
+      "default_code": "INS-001",
+      "name": "Leche entera",
+      "write_date": null
+    },
+    {
+      "id": null,
+      "default_code": "INS-002",
+      "name": "Leche deslactosada",
+      "write_date": null
+    },
+    {
+      "id": null,
+      "default_code": "INS-003",
+      "name": "Leche avena",
+      "write_date": null
+    },
+    {
+      "id": null,
+      "default_code": "INS-004",
+      "name": "Leche almendra",
+      "write_date": null
+    },
+    {
+      "id": null,
+      "default_code": "INS-005",
+      "name": "Huevo",
+      "write_date": null
+    },
+    {
+      "id": null,
+      "default_code": "INS-006",
+      "name": "Pan",
+      "write_date": null
+    },
+    {
+      "id": null,
+      "default_code": "INS-007",
+      "name": "Vasos 12oz",
+      "write_date": null
+    }
+  ]
+}
