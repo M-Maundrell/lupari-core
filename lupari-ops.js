@@ -52,6 +52,9 @@ var isSpeaking = false;
 var currentSpeakingBtnId = null;
 var speechUtterance = null;
 var collapsedSections = {};
+var inventoryProductsLoadPromise = null;
+var inventoryProductsLoaded = false;
+var inventoryProductsLoadTimer = null;
 var state = {
   fecha: '',
   punto: 'arboleda',
@@ -68,6 +71,60 @@ var state = {
   dayClosureReport: null,
   structure: null
 };
+
+function ensureDialogStyles() {
+  if (document.getElementById('lupari-dialog-styles')) return;
+  var style = document.createElement('style');
+  style.id = 'lupari-dialog-styles';
+  style.textContent = [
+    '.lupari-dialog-backdrop{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:18px;}',
+    '.lupari-dialog-box{width:min(420px,100%);background:#18181b;border:1px solid #3f3f46;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.38);padding:18px;color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}',
+    '.lupari-dialog-title{font-size:16px;font-weight:800;margin:0 0 8px;color:#fff;}',
+    '.lupari-dialog-message{font-size:14px;line-height:1.45;color:#d4d4d8;margin:0 0 16px;white-space:pre-line;}',
+    '.lupari-dialog-actions{display:flex;gap:10px;justify-content:flex-end;}',
+    '.lupari-dialog-btn{border:1px solid #3f3f46;border-radius:8px;padding:10px 14px;font-size:14px;font-weight:700;cursor:pointer;background:#27272a;color:#f4f4f5;}',
+    '.lupari-dialog-btn.primary{background:#3b82f6;border-color:#3b82f6;color:#fff;}'
+  ].join('');
+  document.head.appendChild(style);
+}
+
+function lupariConfirm(title, message, confirmText, cancelText) {
+  ensureDialogStyles();
+  return new Promise(function(resolve) {
+    var backdrop = document.createElement('div');
+    backdrop.className = 'lupari-dialog-backdrop';
+    backdrop.innerHTML =
+      '<div class="lupari-dialog-box" role="dialog" aria-modal="true">' +
+        '<h3 class="lupari-dialog-title">' + escapeHtml(title || 'Confirmar') + '</h3>' +
+        '<p class="lupari-dialog-message">' + escapeHtml(message || '') + '</p>' +
+        '<div class="lupari-dialog-actions">' +
+          '<button type="button" class="lupari-dialog-btn" data-action="cancel">' + escapeHtml(cancelText || 'Cancelar') + '</button>' +
+          '<button type="button" class="lupari-dialog-btn primary" data-action="confirm">' + escapeHtml(confirmText || 'Continuar') + '</button>' +
+        '</div>' +
+      '</div>';
+
+    function close(value) {
+      document.removeEventListener('keydown', onKeyDown);
+      if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+      resolve(value);
+    }
+
+    function onKeyDown(event) {
+      if (event.key === 'Escape') close(false);
+      if (event.key === 'Enter') close(true);
+    }
+
+    backdrop.addEventListener('click', function(event) {
+      var action = event.target && event.target.getAttribute('data-action');
+      if (action === 'cancel') close(false);
+      if (action === 'confirm') close(true);
+    });
+    document.addEventListener('keydown', onKeyDown);
+    document.body.appendChild(backdrop);
+    var primaryBtn = backdrop.querySelector('.lupari-dialog-btn.primary');
+    if (primaryBtn) primaryBtn.focus();
+  });
+}
 
 var DATA = {
   prep_moto: [
@@ -1336,45 +1393,98 @@ function populateRestockProductOptions(records) {
   }
 }
 
+function getCachedRestockProducts() {
+  try {
+    var raw = localStorage.getItem('lupari_ops_inventory_products');
+    var parsed = raw ? JSON.parse(raw) : null;
+    if (parsed && Array.isArray(parsed.records)) return parsed.records;
+  } catch (err) {}
+  return [];
+}
+
+function cacheRestockProducts(records) {
+  if (!Array.isArray(records) || !records.length) return;
+  try {
+    localStorage.setItem('lupari_ops_inventory_products', JSON.stringify({
+      savedAt: Date.now(),
+      records: records.slice(0, 200)
+    }));
+  } catch (err) {}
+}
+
+function createFetchTimeout(ms) {
+  if (!window.AbortController) return { signal: undefined, cancel: function() {} };
+  var controller = new AbortController();
+  var timer = window.setTimeout(function() { controller.abort(); }, ms);
+  return {
+    signal: controller.signal,
+    cancel: function() { window.clearTimeout(timer); }
+  };
+}
+
 async function loadOdooInventoryProducts() {
   var selectEl = document.getElementById('restock-product-select');
   if (!selectEl) return;
+  if (inventoryProductsLoaded) return;
+  if (inventoryProductsLoadPromise) return inventoryProductsLoadPromise;
 
-  try {
-    var response = await fetch('/web/dataset/call_kw/product.product/search_read', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-      credentials: 'same-origin',
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'call',
-        params: {
-          model: 'product.product',
-          method: 'search_read',
-          args: [],
-          kwargs: {
-            domain: [['default_code', 'ilike', 'INS-']],
-            fields: ['id', 'name', 'default_code'],
-            limit: 200
+  var cachedProducts = getCachedRestockProducts();
+  populateRestockProductOptions(cachedProducts);
+
+  inventoryProductsLoadPromise = (async function() {
+    var timeout = createFetchTimeout(3500);
+    try {
+      var response = await fetch('/web/dataset/call_kw/product.product/search_read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin',
+        signal: timeout.signal,
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'call',
+          params: {
+            model: 'product.product',
+            method: 'search_read',
+            args: [],
+            kwargs: {
+              domain: [['default_code', 'ilike', 'INS-']],
+              fields: ['id', 'name', 'default_code'],
+              limit: 200
+            }
           }
-        }
-      })
-    });
+        })
+      });
 
-    if (!response.ok) throw new Error('No disponible');
-    var jsonResponse = await response.json();
-    var records = Array.isArray(jsonResponse && jsonResponse.result) ? jsonResponse.result : ((jsonResponse && jsonResponse.result && Array.isArray(jsonResponse.result.records)) ? jsonResponse.result.records : []);
-    populateRestockProductOptions(records);
-  } catch (err) {
-    populateRestockProductOptions([]);
-  }
+      if (!response.ok) throw new Error('No disponible');
+      var jsonResponse = await response.json();
+      var records = Array.isArray(jsonResponse && jsonResponse.result) ? jsonResponse.result : ((jsonResponse && jsonResponse.result && Array.isArray(jsonResponse.result.records)) ? jsonResponse.result.records : []);
+      if (records.length) {
+        cacheRestockProducts(records);
+        populateRestockProductOptions(records);
+      }
+      inventoryProductsLoaded = true;
+    } catch (err) {
+      console.warn('Inventario Odoo no disponible o demasiado lento. Usando insumos locales.', err);
+      populateRestockProductOptions(cachedProducts);
+    } finally {
+      timeout.cancel();
+      inventoryProductsLoadPromise = null;
+    }
+  })();
+
+  return inventoryProductsLoadPromise;
 }
 
-function triggerPhaseStart() {
+async function triggerPhaseStart() {
   var pData = state.phases[currentTab];
   if (pData && pData.startTime) return;
 
-  var ready = confirm('🔔 ¿Estás listo para iniciar la auditoría de esta fase?\n\nEl cronómetro operativo empezará a correr en este momento y registrará tu firma de inicio.');
+  var ready = await lupariConfirm(
+    'Iniciar checklist',
+    'El cronómetro operativo empezará a correr ahora y registrará tu firma de inicio.',
+    'Empezar',
+    'Cancelar'
+  );
   if (!ready) return;
 
   var now = Date.now();
@@ -1886,8 +1996,9 @@ function initializeApp() {
   if (fechaEl) fechaEl.value = state.fecha; if (puntoEl) puntoEl.value = state.punto;
 
   syncFromCloud();
-  loadOdooInventoryProducts();
-  window.setTimeout(loadOdooInventoryProducts, 1500);
+  populateRestockProductOptions(getCachedRestockProducts());
+  if (inventoryProductsLoadTimer) window.clearTimeout(inventoryProductsLoadTimer);
+  inventoryProductsLoadTimer = window.setTimeout(loadOdooInventoryProducts, 2500);
 
   if (fechaEl) fechaEl.addEventListener('change', function() { syncFromCloud(); });
   if (puntoEl) puntoEl.addEventListener('change', function() { syncFromCloud(); });
