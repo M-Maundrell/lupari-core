@@ -497,12 +497,33 @@
       if (!showCustom) inputEl.value = '';
     };
   </script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script>
     (function() {
-      var script = document.createElement('script');
-      script.src = "https://m-maundrell.github.io/lupari-core/lupari-ops.js?t=" + Date.now();
-      document.head.appendChild(script);
+      // 1. Guardar y remover define temporalmente para evitar conflictos de AMD/RequireJS de Odoo
+      var _define = window.define;
+      window.define = undefined;
+      
+      var jspdfScript = document.createElement('script');
+      jspdfScript.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+      
+      jspdfScript.onload = function() {
+        // Restaurar define inmediatamente después de cargar jspdf
+        window.define = _define;
+        console.log('jsPDF cargado y expuesto globalmente.');
+        
+        // 2. Cargar lupari-ops.js una vez listo jspdf con cache-buster por timestamp
+        var opsScript = document.createElement('script');
+        opsScript.src = "https://m-maundrell.github.io/lupari-core/lupari-ops.js?t=" + Date.now();
+        document.head.appendChild(opsScript);
+      };
+      
+      jspdfScript.onerror = function() {
+        // Asegurar la restauración de define en caso de error de red
+        window.define = _define;
+        console.error('Error al cargar jsPDF.');
+      };
+      
+      document.head.appendChild(jspdfScript);
     })();
   </script>
 </body>
