@@ -830,7 +830,90 @@ function buildDayClosureReport(closeTimestamp) {
   };
 }
 
+async function uploadAttachmentViaController(filename, base64Data, model, recordId) {
+  try {
+    var csrfToken = (window.odoo && window.odoo.csrf_token) || window.csrf_token || "";
+    
+    // Convertir Base64 a Blob/File
+    var byteCharacters = atob(base64Data);
+    var byteArrays = [];
+    for (var offset = 0; offset < byteCharacters.length; offset += 512) {
+      var slice = byteCharacters.slice(offset, offset + 512);
+      var byteNumbers = new Array(slice.length);
+      for (var i = 0; i < slice.length; i++) {
+        byteNumbers[i] = slice.charCodeAt(i);
+      }
+      var byteArray = new Uint8Array(byteNumbers);
+      byteArrays.push(byteArray);
+    }
+    var mimeType = filename.endsWith('.pdf') ? 'application/pdf' : 'text/html';
+    var blob = new Blob(byteArrays, { type: mimeType });
+    var file = new File([blob], filename, { type: mimeType });
+
+    var formData = new FormData();
+    formData.append('ufile', file);
+    formData.append('model', model);
+    formData.append('id', recordId);
+    if (csrfToken) {
+      formData.append('csrf_token', csrfToken);
+    }
+
+    console.log('Intentando subir adjunto via Odoo Controller para res_model:', model);
+    
+    var response = await fetch('/web/binary/upload_attachment', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+
+    if (response.ok) {
+      var text = await response.text();
+      console.log('Respuesta del controlador de subida:', text);
+      try {
+        var json = JSON.parse(text);
+        if (json && json.id) {
+          return json.id;
+        } else if (Array.isArray(json) && json[0] && json[0].id) {
+          return json[0].id;
+        } else if (json && json.result && json.result.id) {
+          return json.result.id;
+        }
+      } catch (parseErr) {
+        var match = text.match(/"id":\s*(\d+)/) || text.match(/id:\s*(\d+)/) || text.match(/\/web\/content\/(\d+)/);
+        if (match && match[1]) {
+          var id = parseInt(match[1], 10);
+          console.log('ID del adjunto extraído de la respuesta HTML:', id);
+          return id;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error al subir via Odoo Controller:', err);
+  }
+  return null;
+}
+
 async function createOdooAttachment(filename, base64Data, channelId, headers) {
+  // 1. Intentar subir usando el controlador HTTP nativo (Sudo interno, evita file_size 0)
+  var modelsToTryController = [
+    'discuss.channel',
+    'mail.channel',
+    'mail.compose.message'
+  ];
+
+  for (var i = 0; i < modelsToTryController.length; i++) {
+    var model = modelsToTryController[i];
+    var attachmentId = await uploadAttachmentViaController(filename, base64Data, model, model === 'mail.compose.message' ? 0 : channelId);
+    if (attachmentId) {
+      console.log('Adjunto creado exitosamente vía controlador HTTP. ID:', attachmentId);
+      return attachmentId;
+    }
+  }
+
+  // 2. Fallback al RPC clásico
+  console.log('Controlador HTTP falló. Iniciando fallback de JSON-RPC...');
   var modelsToTry = [
     { model: 'discuss.channel', id: channelId },
     { model: 'mail.channel', id: channelId },
@@ -868,16 +951,16 @@ async function createOdooAttachment(filename, base64Data, channelId, headers) {
       if (response.ok) {
         var json = await response.json();
         if (json && json.result) {
-          console.log('Adjunto creado exitosamente con model:', item.model, 'ID:', json.result);
+          console.log('Adjunto creado exitosamente con RPC model:', item.model, 'ID:', json.result);
           return json.result;
         } else {
-          console.warn('Falla al crear adjunto con model:', item.model, json.error);
+          console.warn('Falla al crear adjunto con RPC model:', item.model, json.error);
         }
       } else {
-        console.warn('Error de red al intentar model:', item.model, response.status);
+        console.warn('Error de red al intentar RPC model:', item.model, response.status);
       }
     } catch (e) {
-      console.warn('Excepción al intentar model:', item.model, e);
+      console.warn('Excepción al intentar RPC model:', item.model, e);
     }
   }
   return null;
