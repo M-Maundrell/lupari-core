@@ -996,6 +996,11 @@ async function sendDayClosureReportToOdoo(report) {
           return;
         }
 
+        // --- BYPASS TEMPORAL DE ODOO ---
+        console.log('[DEBUG] Saltando carga a Odoo para evitar inundar el chat de archivos vacíos.');
+        alert('ℹ️ Diagnóstico: PDF guardado en Firebase. Carga a Odoo omitida para evitar chat inundado.');
+        return;
+
 
       } else {
         // Fallback a HTML si jsPDF no está cargado
