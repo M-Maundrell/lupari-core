@@ -846,6 +846,11 @@ async function sendDayClosureReportToOdoo(report) {
     try {
       var base64Data = null;
 
+      console.log('--- Diagnóstico de Dependencias PDF ---');
+      console.log('window.jsPDF disponible:', !!window.jsPDF);
+      console.log('window.jspdf disponible:', !!window.jspdf);
+      console.log('window.define (AMD loader) activo:', !!window.define);
+
       var jsPDFClass = window.jsPDF || (window.jspdf && window.jspdf.jsPDF);
       if (jsPDFClass) {
         // 1. Generar el PDF usando jsPDF de forma nativa en memoria (evitando fallas de html2canvas en iframes)
