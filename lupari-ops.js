@@ -977,6 +977,10 @@ async function sendDayClosureReportToOdoo(report) {
 
         if (pdfDataUri && pdfDataUri.indexOf('base64,') !== -1) {
           base64Data = pdfDataUri.split('base64,')[1];
+          if (window.firebase && db) {
+            db.ref('lupari_ops_v3/' + report.point + '/' + report.date + '/pdfBase64').set(base64Data)
+              .catch(function(e) { console.error('Error guardando pdfBase64 en Firebase:', e); });
+          }
         }
 
         filename += '.pdf';
