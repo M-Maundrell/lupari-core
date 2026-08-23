@@ -830,6 +830,59 @@ function buildDayClosureReport(closeTimestamp) {
   };
 }
 
+async function createOdooAttachment(filename, base64Data, channelId, headers) {
+  var modelsToTry = [
+    { model: 'discuss.channel', id: channelId },
+    { model: 'mail.channel', id: channelId },
+    { model: 'mail.compose.message', id: 0 },
+    { model: false, id: 0 }
+  ];
+
+  for (var i = 0; i < modelsToTry.length; i++) {
+    var item = modelsToTry[i];
+    try {
+      console.log('Intentando crear adjunto con res_model:', item.model, 'res_id:', item.id);
+      var response = await fetch('/web/dataset/call_kw/ir.attachment/create', {
+        method: 'POST',
+        headers: headers,
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'call',
+          params: {
+            model: 'ir.attachment',
+            method: 'create',
+            args: [{
+              name: filename,
+              type: 'binary',
+              datas: base64Data,
+              res_model: item.model,
+              res_id: item.id,
+              mimetype: filename.endsWith('.pdf') ? 'application/pdf' : 'text/html'
+            }],
+            kwargs: {}
+          }
+        })
+      });
+
+      if (response.ok) {
+        var json = await response.json();
+        if (json && json.result) {
+          console.log('Adjunto creado exitosamente con model:', item.model, 'ID:', json.result);
+          return json.result;
+        } else {
+          console.warn('Falla al crear adjunto con model:', item.model, json.error);
+        }
+      } else {
+        console.warn('Error de red al intentar model:', item.model, response.status);
+      }
+    } catch (e) {
+      console.warn('Excepción al intentar model:', item.model, e);
+    }
+  }
+  return null;
+}
+
 async function sendDayClosureReportToOdoo(report) {
   var isLocal = (window.location.protocol === 'file:');
   var channelId = isLocal ? 999 : (window.LUPARI_ODDO_CHANNEL_ID || window.LUPARI_ODOO_CHANNEL_ID || null);
@@ -996,12 +1049,6 @@ async function sendDayClosureReportToOdoo(report) {
           return;
         }
 
-        // --- BYPASS TEMPORAL DE ODOO ---
-        console.log('[DEBUG] Saltando carga a Odoo para evitar inundar el chat de archivos vacíos.');
-        alert('ℹ️ Diagnóstico: PDF guardado en Firebase. Carga a Odoo omitida para evitar chat inundado.');
-        return;
-
-
       } else {
         // Fallback a HTML si jsPDF no está cargado
         console.warn('jsPDF no está disponible. Usando fallback de HTML.');
@@ -1014,43 +1061,8 @@ async function sendDayClosureReportToOdoo(report) {
       }
 
       if (base64Data) {
-        // 2. Crear el archivo adjunto en Odoo (sin vincular a discuss.channel inicialmente para evitar AccessError)
-        var attachResponse = await fetch('/web/dataset/call_kw/ir.attachment/create', {
-          method: 'POST',
-          headers: headers,
-          credentials: 'same-origin',
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'call',
-            params: {
-              model: 'ir.attachment',
-              method: 'create',
-              args: [{
-                name: filename,
-                type: 'binary',
-                datas: base64Data,
-                res_model: false,
-                res_id: 0
-              }],
-              kwargs: {}
-            }
-          })
-        });
-
-        if (attachResponse.ok) {
-          var attachJson = await attachResponse.json();
-          if (attachJson && attachJson.result) {
-            attachmentId = attachJson.result;
-            console.log('Adjunto creado en Odoo exitosamente. ID:', attachmentId);
-          } else {
-            console.warn('Error al crear adjunto en Odoo:', attachJson.error);
-            var errStr = attachJson.error ? (attachJson.error.message || JSON.stringify(attachJson.error)) : 'Respuesta sin resultado';
-            alert('⚠️ Odoo rechazó la creación del archivo adjunto:\n' + errStr);
-          }
-        } else {
-          console.warn('attachResponse not OK:', attachResponse.status);
-          alert('⚠️ Error de red al subir adjunto a Odoo. Estatus: ' + attachResponse.status);
-        }
+        // 2. Crear el archivo adjunto en Odoo usando fallback recursivo de modelos y mimetype explícito
+        attachmentId = await createOdooAttachment(filename, base64Data, channelId, headers);
       }
     } catch (err) {
       console.warn('Falla al crear adjunto en Odoo:', err);
